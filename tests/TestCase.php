@@ -46,5 +46,9 @@ abstract class TestCase extends Orchestra
         Schema::create('posts', function (Blueprint $table): void {
             $table->increments('id');
         });
+
+        Schema::create('users', function (Blueprint $table): void {
+            $table->increments('id');
+        });
     }
 }

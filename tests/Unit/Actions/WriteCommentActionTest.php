@@ -106,3 +106,22 @@ it('throws on an over-length body', function (): void {
         body: str_repeat('a', 11),
     ));
 })->throws(InvalidCommentBodyException::class);
+
+it('stops the depth walk when an ancestor is missing', function (): void {
+    config()->set('comments.max_depth', 5);
+    $post = PostTestModel::create();
+
+    $root = Comment::factory()->for($post, 'commentable')->create();
+    $child = Comment::factory()->for($post, 'commentable')->reply($root)->create();
+
+    // Force-remove the root so walking up from the child hits a null parent.
+    $root->forceDelete();
+
+    $comment = app(WriteCommentAction::class)->execute(new WriteCommentData(
+        commentable: $post,
+        body: 'reply to an orphaned child',
+        parent: $child->fresh(),
+    ));
+
+    expect($comment->parent_id)->toBe($child->getKey());
+});
