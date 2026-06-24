@@ -10,9 +10,13 @@
 
 Attach polymorphic comments to any Laravel model. Any model can *give* comments and any
 model can *receive* them, with first-class threaded replies, a built-in moderation workflow,
-and a discoverable `Comments` facade. The package ships a single morph-based `comments`
-table, two opt-in traits, typed actions/DTOs, and an event for every part of the comment
-lifecycle.
+and a discoverable `Comments` facade. The package ships morph-based tables, opt-in traits,
+typed actions/DTOs, and an event for every part of the comment lifecycle.
+
+On top of the basics it adds emoji **reactions**, `@mention` parsing, a configurable
+**blocklist** filter, thread/subject **locking**, a fluent **reading & bulk-moderation**
+query, N+1-free **comment counts**, opt-in **authorization** via a policy, ready-made **API
+Resources**, and **testing helpers** for host apps.
 
 ## Requirements
 
@@ -61,16 +65,24 @@ return [
     'max_length' => env('COMMENTS_MAX_LENGTH', 5000),
     'max_depth' => env('COMMENTS_MAX_DEPTH', 5),
     'order' => env('COMMENTS_ORDER', 'latest'),
+    'blocklist' => [],
+    'blocklist_action' => env('COMMENTS_BLOCKLIST_ACTION', 'reject'),
+    'mention_resolver' => null,
+    'authorization' => env('COMMENTS_AUTHORIZATION', false),
 ];
 ```
 
-| Key                | Type           | Default          | Env                          | Description |
-|--------------------|----------------|------------------|------------------------------|-------------|
-| `model`            | `class-string` | `Comment::class` | —                            | The Eloquent model used to store comments. Point this at your own model (extending `RoundlyConsulting\Comments\Models\Comment`) if you need extra columns, casts, or behaviour. |
-| `require_approval` | `bool`         | `false`          | `COMMENTS_REQUIRE_APPROVAL`  | When `true`, new comments start as `pending` and must be approved before they count as visible. When `false`, comments are approved immediately. |
-| `max_length`       | `int`          | `5000`           | `COMMENTS_MAX_LENGTH`        | Maximum characters allowed in a comment body. A longer body throws `InvalidCommentBodyException`. |
-| `max_depth`        | `int`          | `5`              | `COMMENTS_MAX_DEPTH`         | Maximum nesting depth for replies (a top-level comment is depth 1). Replying deeper throws `MaxReplyDepthExceededException`, and threaded eager-loading is bounded to this depth. |
-| `order`            | `string`       | `latest`         | `COMMENTS_ORDER`             | Default ordering for reading helpers — `latest` (newest first) or `oldest`. |
+| Key                | Type                | Default          | Env                          | Description |
+|--------------------|---------------------|------------------|------------------------------|-------------|
+| `model`            | `class-string`      | `Comment::class` | —                            | The Eloquent model used to store comments. Point this at your own model (extending `RoundlyConsulting\Comments\Models\Comment`) if you need extra columns, casts, or behaviour. |
+| `require_approval` | `bool`              | `false`          | `COMMENTS_REQUIRE_APPROVAL`  | When `true`, new comments start as `pending` and must be approved before they count as visible. When `false`, comments are approved immediately. |
+| `max_length`       | `int`               | `5000`           | `COMMENTS_MAX_LENGTH`        | Maximum characters allowed in a comment body. A longer body throws `InvalidCommentBodyException`. |
+| `max_depth`        | `int`               | `5`              | `COMMENTS_MAX_DEPTH`         | Maximum nesting depth for replies (a top-level comment is depth 1). Replying deeper throws `MaxReplyDepthExceededException`, and threaded eager-loading is bounded to this depth. |
+| `order`            | `string`            | `latest`         | `COMMENTS_ORDER`             | Default ordering for reading helpers — `latest` (newest first) or `oldest`. |
+| `blocklist`        | `list<string>`      | `[]`             | —                            | Banned words or regexes. Plain strings match case-insensitively as whole words; delimited entries (e.g. `/badword/i`) are treated as patterns. |
+| `blocklist_action` | `string`            | `reject`         | `COMMENTS_BLOCKLIST_ACTION`  | What to do on a match: `reject` (throw `CommentRejectedException`), `pending`, or `hidden`. |
+| `mention_resolver` | `callable\|null`    | `null`           | —                            | Resolves a parsed `@handle` to an Eloquent model (or `null`). Handles are always stored; resolved ones link to the model and fire `CommentMentioned`. |
+| `authorization`    | `bool`              | `false`          | `COMMENTS_AUTHORIZATION`     | When `true`, write/update/moderation actions consult Laravel's `Gate`. Off by default so existing behaviour is unchanged. |
 
 The package works with zero configuration — every key has a sensible default.
 
@@ -225,6 +237,9 @@ carrying the comment on its `$comment` property:
 - `CommentDeleted`
 - `CommentApproved`
 - `CommentHidden`
+- `CommentReacted` (`$event->reaction`)
+- `CommentUnreacted` (`$event->comment`, `$event->reaction`, `$event->reactor`)
+- `CommentMentioned` (`$event->mention`)
 
 ```php
 use RoundlyConsulting\Comments\Events\CommentCreated;
@@ -236,6 +251,136 @@ Event::listen(function (CommentCreated $event): void {
         new NewCommentNotification($event->comment),
     );
 });
+```
+
+### Reactions
+
+Any model can react to a comment, and reactions are deduplicated per reactor + emoji.
+
+```php
+$comment->react('👍', as: $user);   // dispatches CommentReacted (first time only)
+$comment->react('❤️');             // anonymous reaction (no reactor)
+$comment->unreact('👍', as: $user); // returns bool, dispatches CommentUnreacted
+
+$comment->reactionCounts(); // ['👍' => 3, '❤️' => 1]
+$comment->reactions;        // the CommentReaction models
+```
+
+### @mentions
+
+Comment bodies are scanned for `@handle` tokens on write and edit. Handles are always stored;
+set a resolver to link them to models and fire `CommentMentioned`.
+
+```php
+// config/comments.php
+'mention_resolver' => fn (string $handle) => \App\Models\User::where('username', $handle)->first(),
+
+$comment = Comments::on($post)->body('thanks @alice!')->post();
+$comment->mentions; // CommentMention rows (handle + optional mentionable)
+```
+
+### Spam / blocklist filter
+
+Configure banned words or regexes and how a match is handled:
+
+```php
+// config/comments.php
+'blocklist' => ['spam', '/casino|viagra/i'],
+'blocklist_action' => 'reject', // 'reject' | 'pending' | 'hidden'
+```
+
+With `reject`, a matching comment throws `CommentRejectedException`; with `pending`/`hidden`
+it is stored in that status instead.
+
+### Locking threads
+
+Lock a subject to stop new or edited comments, or lock a single reply chain:
+
+```php
+Comments::lock($post);            // block all new/edited comments on the post
+Comments::unlock($post);
+$post->commentsLocked();          // bool
+Comments::isLocked($post);        // bool
+
+$comment->lockReplies();          // freeze just this comment's reply chain + edits
+$comment->unlockReplies();
+$comment->isLocked();             // bool
+```
+
+Writing or editing against a lock throws `CommentsLockedException`.
+
+### Reading & bulk moderation
+
+A fluent read side mirrors the write builder, with moderation, ordering, and pagination:
+
+```php
+use RoundlyConsulting\Comments\Facades\Comments;
+
+Comments::for($post)->approved()->newest()->paginate(20);
+Comments::for($post)->visible()->rootsOnly()->withReplies()->get();
+Comments::for($post)->pending()->count();
+Comments::byAuthor($user)->get();
+
+// Bulk moderation — fires the lifecycle event per affected comment:
+Comments::for($post)->pending()->approveAll();
+Comments::byAuthor($user)->hideAll();
+Comments::for($post)->deleteAll();
+```
+
+### Comment counts
+
+```php
+$post->loadCommentCount();        // sets $post->comments_count (approved comments)
+
+Post::withCommentCounts()->get(); // adds comments_count without N+1
+```
+
+### Authorization
+
+Authorization is **off by default**, so existing callers are unaffected. Opt in by setting
+`comments.authorization` to `true` and registering a policy for the `Comment` model. The
+package ships a permissive starting point you can extend:
+
+```php
+use Illuminate\Support\Facades\Gate;
+use RoundlyConsulting\Comments\Models\Comment;
+use RoundlyConsulting\Comments\Policies\CommentPolicy;
+
+Gate::policy(Comment::class, CommentPolicy::class);
+```
+
+When enabled, the actions check the `create`, `update`, `delete`, and `moderate` abilities and
+throw `UnauthorizedCommentActionException` on denial.
+
+### API Resources
+
+Drop-in JSON for SPA/mobile backends, with nested replies, author, status, reaction counts,
+and timestamps:
+
+```php
+use RoundlyConsulting\Comments\Http\Resources\CommentResource;
+
+return CommentResource::collection(
+    $post->threadedComments()->with(['actor', 'reactions'])->get(),
+);
+```
+
+### Testing helpers
+
+The factory ships states (`pending()`, `hidden()`, `locked()`, `reply($parent)`,
+`by($user)`), and the `AssertsComments` trait adds expectations for host-app tests:
+
+```php
+use RoundlyConsulting\Comments\Testing\AssertsComments;
+
+Comment::factory()->pending()->create();
+Comment::factory()->reply($root)->by($user)->create();
+
+// In a test case using AssertsComments:
+$this->assertCommented($post);
+$this->assertCommented($post, 'expected body');
+$this->assertCommentCount($post, 3);
+$this->assertNotCommented($post);
 ```
 
 ## Testing
