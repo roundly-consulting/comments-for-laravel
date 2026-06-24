@@ -68,4 +68,66 @@ return [
 
     'order' => env('COMMENTS_ORDER', 'latest'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Blocklist
+    |--------------------------------------------------------------------------
+    |
+    | A list of banned words or regular expressions. A comment body matching
+    | any entry is handled per "blocklist_action". Plain strings match
+    | case-insensitively as whole words; entries wrapped in delimiters (e.g.
+    | "/badword/i") are treated as regular expressions.
+    |
+    | @var list<string>
+    |
+    */
+
+    'blocklist' => [],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Blocklist Action
+    |--------------------------------------------------------------------------
+    |
+    | What to do when a comment matches the blocklist. One of:
+    |   "reject"  — throw a CommentRejectedException (the comment is not stored)
+    |   "pending" — store the comment with the "pending" status for review
+    |   "hidden"  — store the comment with the "hidden" status
+    |
+    */
+
+    'blocklist_action' => env('COMMENTS_BLOCKLIST_ACTION', 'reject'),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Mention Resolver
+    |--------------------------------------------------------------------------
+    |
+    | A callable that resolves a parsed "@handle" token to an Eloquent model
+    | (or null). Set it to a callable or an [class, method] array. Handles are
+    | always stored; when the resolver returns a model the mention is linked to
+    | it and a CommentMentioned event is dispatched. Leave null to only store
+    | the raw handles.
+    |
+    | @var callable|array{0: class-string, 1: string}|null
+    |
+    */
+
+    'mention_resolver' => null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Authorization
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, the write/update/moderation actions consult Laravel's Gate
+    | before mutating a comment ("create"/"update"/"moderate" abilities on the
+    | configured policy). Disabled by default so existing behaviour is
+    | unchanged — opt in by setting this to true and registering CommentPolicy
+    | (or your own) for the Comment model.
+    |
+    */
+
+    'authorization' => env('COMMENTS_AUTHORIZATION', false),
+
 ];
