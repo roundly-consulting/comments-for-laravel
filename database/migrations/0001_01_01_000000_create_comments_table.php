@@ -13,11 +13,15 @@ return new class extends Migration
         Schema::create('comments', function (Blueprint $table): void {
             $table->id();
             $table->boolean('visible')->default(true);
-            $table->morphs('actor');
+            $table->string('status')->default('approved')->index();
+            $table->foreignId('parent_id')->nullable()->index();
+            $table->nullableMorphs('actor');
             $table->morphs('commentable');
             $table->text('comment');
             $table->timestamps();
             $table->softDeletes();
+
+            $table->index(['commentable_type', 'commentable_id', 'status']);
         });
     }
 };
