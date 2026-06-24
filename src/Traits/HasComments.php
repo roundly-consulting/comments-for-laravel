@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Comments\Traits;
 
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Models\Comment;
+use RoundlyConsulting\Comments\Models\CommentLock;
 
 trait HasComments
 {
@@ -60,6 +62,46 @@ trait HasComments
     public function commentsWithReplies(): MorphMany
     {
         return $this->comments()->with('commentsWithReplies');
+    }
+
+    /**
+     * Eager-load an approved comment count onto this instance, exposed as the
+     * `comments_count` attribute.
+     */
+    public function loadCommentCount(): static
+    {
+        $this->loadCount(['comments as comments_count' => self::approvedCommentCountConstraint(...)]);
+
+        return $this;
+    }
+
+    /**
+     * Query scope adding an approved `comments_count` without N+1.
+     *
+     * @param  Builder<static>  $query
+     */
+    public function scopeWithCommentCounts(Builder $query): void
+    {
+        $query->withCount(['comments as comments_count' => self::approvedCommentCountConstraint(...)]);
+    }
+
+    /**
+     * @param  Builder<Comment>  $query
+     */
+    private static function approvedCommentCountConstraint(Builder $query): void
+    {
+        $query->where('status', CommentStatus::Approved);
+    }
+
+    /**
+     * Whether new/edited comments on this subject are blocked by a lock.
+     */
+    public function commentsLocked(): bool
+    {
+        return CommentLock::query()
+            ->where('lockable_type', $this->getMorphClass())
+            ->where('lockable_id', $this->getKey())
+            ->exists();
     }
 
     private function buildRepliesEagerLoad(int $maxDepth): string

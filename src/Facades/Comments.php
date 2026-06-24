@@ -9,12 +9,17 @@ use RoundlyConsulting\Comments\CommentManager;
 
 /**
  * @method static \RoundlyConsulting\Comments\CommentBuilder on(\Illuminate\Database\Eloquent\Model $commentable)
+ * @method static \RoundlyConsulting\Comments\CommentQuery for(\Illuminate\Database\Eloquent\Model $subject)
+ * @method static \RoundlyConsulting\Comments\CommentQuery byAuthor(\Illuminate\Database\Eloquent\Model $author)
  * @method static \RoundlyConsulting\Comments\Models\Comment write(\RoundlyConsulting\Comments\DataTransferObjects\WriteCommentData $data)
  * @method static \RoundlyConsulting\Comments\Models\Comment update(\RoundlyConsulting\Comments\Models\Comment $comment, string $body)
  * @method static void delete(\RoundlyConsulting\Comments\Models\Comment $comment)
  * @method static \RoundlyConsulting\Comments\Models\Comment restore(\RoundlyConsulting\Comments\Models\Comment $comment)
  * @method static \RoundlyConsulting\Comments\Models\Comment approve(\RoundlyConsulting\Comments\Models\Comment $comment)
  * @method static \RoundlyConsulting\Comments\Models\Comment hide(\RoundlyConsulting\Comments\Models\Comment $comment)
+ * @method static \RoundlyConsulting\Comments\Models\CommentLock lock(\Illuminate\Database\Eloquent\Model $subject)
+ * @method static void unlock(\Illuminate\Database\Eloquent\Model $subject)
+ * @method static bool isLocked(\Illuminate\Database\Eloquent\Model $subject)
  *
  * @see CommentManager
  */

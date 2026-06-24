@@ -13,7 +13,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use RoundlyConsulting\Comments\Actions\ReactToCommentAction;
+use RoundlyConsulting\Comments\Actions\UnreactToCommentAction;
 use RoundlyConsulting\Comments\Database\Factories\CommentFactory;
+use RoundlyConsulting\Comments\DataTransferObjects\ReactToCommentData;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Events\CommentCreated;
 use RoundlyConsulting\Comments\Traits\HasComments;
@@ -28,6 +31,7 @@ use RoundlyConsulting\Comments\Traits\HasComments;
  * @property int $commentable_id
  * @property string $commentable_type
  * @property string $comment
+ * @property CarbonInterface|null $locked_at
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
  * @property CarbonInterface|null $deleted_at
@@ -35,6 +39,8 @@ use RoundlyConsulting\Comments\Traits\HasComments;
  * @property-read Model $commentable
  * @property-read Comment|null $parent
  * @property-read Collection<int, Comment> $replies
+ * @property-read Collection<int, CommentReaction> $reactions
+ * @property-read Collection<int, CommentMention> $mentions
  */
 class Comment extends Model
 {
@@ -74,6 +80,76 @@ class Comment extends Model
     public function replies(): HasMany
     {
         return $this->hasMany(self::class, 'parent_id');
+    }
+
+    /** @return HasMany<CommentReaction, $this> */
+    public function reactions(): HasMany
+    {
+        return $this->hasMany(CommentReaction::class, 'comment_id');
+    }
+
+    /** @return HasMany<CommentMention, $this> */
+    public function mentions(): HasMany
+    {
+        return $this->hasMany(CommentMention::class, 'comment_id');
+    }
+
+    /**
+     * Add a reaction to this comment from the given reactor (or anonymously).
+     */
+    public function react(string $reaction, ?Model $as = null): CommentReaction
+    {
+        return app(ReactToCommentAction::class)->execute(
+            new ReactToCommentData(comment: $this, reaction: $reaction, reactor: $as),
+        );
+    }
+
+    /**
+     * Remove a previously added reaction. Returns whether anything was removed.
+     */
+    public function unreact(string $reaction, ?Model $as = null): bool
+    {
+        return app(UnreactToCommentAction::class)->execute(
+            new ReactToCommentData(comment: $this, reaction: $reaction, reactor: $as),
+        );
+    }
+
+    /**
+     * Counts keyed by reaction string, e.g. ['👍' => 3, '❤️' => 1].
+     *
+     * @return array<string, int>
+     */
+    public function reactionCounts(): array
+    {
+        $counts = [];
+
+        foreach ($this->reactions()->get() as $reaction) {
+            $counts[$reaction->reaction] = ($counts[$reaction->reaction] ?? 0) + 1;
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Lock this comment's reply chain so it cannot accept new or edited replies.
+     */
+    public function lockReplies(): self
+    {
+        $this->update(['locked_at' => now()]);
+
+        return $this;
+    }
+
+    public function unlockReplies(): self
+    {
+        $this->update(['locked_at' => null]);
+
+        return $this;
+    }
+
+    public function isLocked(): bool
+    {
+        return $this->locked_at !== null;
     }
 
     /**
@@ -132,6 +208,7 @@ class Comment extends Model
         return [
             'visible' => 'boolean',
             'status' => CommentStatus::class,
+            'locked_at' => 'datetime',
         ];
     }
 
