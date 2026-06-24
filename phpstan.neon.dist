@@ -1,0 +1,12 @@
+parameters:
+    level: 7
+    paths:
+        - src
+        - database
+        - config
+        - tests/ActorTestModel.php
+        - tests/PostTestModel.php
+    checkModelProperties: true
+    # This package ships its own config/ dir; env() is correct there.
+    configDirectories:
+        - config
