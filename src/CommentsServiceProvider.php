@@ -12,11 +12,14 @@ final class CommentsServiceProvider extends ServiceProvider
     {
         // Merge so the host app only needs to publish/override what it wants.
         $this->mergeConfigFrom(__DIR__.'/../config/comments.php', 'comments');
+
+        $this->app->singleton(CommentManager::class);
     }
 
     public function boot(): void
     {
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
+        $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'comments');
 
         if ($this->app->runningInConsole()) {
             $this->publishes([
@@ -26,6 +29,10 @@ final class CommentsServiceProvider extends ServiceProvider
             $this->publishes([
                 __DIR__.'/../database/migrations' => database_path('migrations'),
             ], 'comments-migrations');
+
+            $this->publishes([
+                __DIR__.'/../resources/lang' => $this->app->langPath('vendor/comments'),
+            ], 'comments-translations');
         }
     }
 }
