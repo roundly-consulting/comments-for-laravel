@@ -13,13 +13,16 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
-use RoundlyConsulting\Comments\Actions\ReactToCommentAction;
-use RoundlyConsulting\Comments\Actions\UnreactToCommentAction;
+use RoundlyConsulting\Comments\Concerns\HasCommentMedia;
+use RoundlyConsulting\Comments\Concerns\HasCommentReactions;
+use RoundlyConsulting\Comments\Concerns\HasCommentReports;
 use RoundlyConsulting\Comments\Database\Factories\CommentFactory;
-use RoundlyConsulting\Comments\DataTransferObjects\ReactToCommentData;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Events\CommentCreated;
 use RoundlyConsulting\Comments\Traits\HasComments;
+use RoundlyConsulting\Likes\Contracts\Likeable;
+use RoundlyConsulting\MediaLibrary\Contracts\HasMedia;
+use RoundlyConsulting\Reports\Contracts\Reportable;
 
 /**
  * @property int $id
@@ -39,11 +42,13 @@ use RoundlyConsulting\Comments\Traits\HasComments;
  * @property-read Model $commentable
  * @property-read Comment|null $parent
  * @property-read Collection<int, Comment> $replies
- * @property-read Collection<int, CommentReaction> $reactions
  * @property-read Collection<int, CommentMention> $mentions
  */
-class Comment extends Model
+class Comment extends Model implements HasMedia, Likeable, Reportable
 {
+    use HasCommentMedia;
+    use HasCommentReactions;
+    use HasCommentReports;
     use HasComments;
 
     /** @use HasFactory<CommentFactory> */
@@ -82,52 +87,10 @@ class Comment extends Model
         return $this->hasMany(self::class, 'parent_id');
     }
 
-    /** @return HasMany<CommentReaction, $this> */
-    public function reactions(): HasMany
-    {
-        return $this->hasMany(CommentReaction::class, 'comment_id');
-    }
-
     /** @return HasMany<CommentMention, $this> */
     public function mentions(): HasMany
     {
         return $this->hasMany(CommentMention::class, 'comment_id');
-    }
-
-    /**
-     * Add a reaction to this comment from the given reactor (or anonymously).
-     */
-    public function react(string $reaction, ?Model $as = null): CommentReaction
-    {
-        return app(ReactToCommentAction::class)->execute(
-            new ReactToCommentData(comment: $this, reaction: $reaction, reactor: $as),
-        );
-    }
-
-    /**
-     * Remove a previously added reaction. Returns whether anything was removed.
-     */
-    public function unreact(string $reaction, ?Model $as = null): bool
-    {
-        return app(UnreactToCommentAction::class)->execute(
-            new ReactToCommentData(comment: $this, reaction: $reaction, reactor: $as),
-        );
-    }
-
-    /**
-     * Counts keyed by reaction string, e.g. ['👍' => 3, '❤️' => 1].
-     *
-     * @return array<string, int>
-     */
-    public function reactionCounts(): array
-    {
-        $counts = [];
-
-        foreach ($this->reactions()->get() as $reaction) {
-            $counts[$reaction->reaction] = ($counts[$reaction->reaction] ?? 0) + 1;
-        }
-
-        return $counts;
     }
 
     /**

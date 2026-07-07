@@ -25,16 +25,6 @@ return new class extends Migration
             $table->index(['commentable_type', 'commentable_id', 'status']);
         });
 
-        Schema::create('comment_reactions', function (Blueprint $table): void {
-            $table->id();
-            $table->foreignId('comment_id')->index();
-            $table->nullableMorphs('reactor');
-            $table->string('reaction');
-            $table->timestamps();
-
-            $table->unique(['comment_id', 'reactor_type', 'reactor_id', 'reaction'], 'comment_reactions_unique');
-        });
-
         Schema::create('comment_mentions', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('comment_id')->index();

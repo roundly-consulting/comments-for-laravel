@@ -112,6 +112,68 @@ final class CommentQuery
     }
 
     /**
+     * Rank the thread by like count, most-liked first (likes-for-laravel).
+     */
+    public function orderByLikesDesc(): self
+    {
+        $this->query->orderByLikesDesc();
+
+        return $this;
+    }
+
+    /**
+     * Rank the thread by a recency-weighted trending score (likes-for-laravel).
+     */
+    public function orderByTrending(): self
+    {
+        $this->query->orderByTrending();
+
+        return $this;
+    }
+
+    /**
+     * Hydrate per-row viewer like-state (`is_liked` / `liked_reaction`) for a whole
+     * page in a single query. Pass the viewer explicitly; a null viewer renders a
+     * guest state (never resolved from the auth guard).
+     */
+    public function withLikedState(?Model $viewer = null): self
+    {
+        $this->query->withLikedState($viewer);
+
+        return $this;
+    }
+
+    /**
+     * Eager-load each comment's report count for a moderation queue (reports-for-laravel).
+     */
+    public function withReportCounts(): self
+    {
+        $this->query->withReportCounts();
+
+        return $this;
+    }
+
+    /**
+     * Order the moderation queue by report volume, most-reported first.
+     */
+    public function mostReported(): self
+    {
+        $this->query->mostReported();
+
+        return $this;
+    }
+
+    /**
+     * Restrict the moderation queue to comments reported more than $threshold times.
+     */
+    public function reportedMoreThan(int $threshold): self
+    {
+        $this->query->reportedMoreThan($threshold);
+
+        return $this;
+    }
+
+    /**
      * Escape hatch for arbitrary refinements on the underlying query.
      *
      * @param  callable(Builder<Comment>): void  $callback
