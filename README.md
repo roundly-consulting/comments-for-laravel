@@ -13,15 +13,22 @@ model can *receive* them, with first-class threaded replies, a built-in moderati
 and a discoverable `Comments` facade. The package ships morph-based tables, opt-in traits,
 typed actions/DTOs, and an event for every part of the comment lifecycle.
 
-On top of the basics it adds emoji **reactions**, `@mention` parsing, a configurable
-**blocklist** filter, thread/subject **locking**, a fluent **reading & bulk-moderation**
-query, N+1-free **comment counts**, opt-in **authorization** via a policy, ready-made **API
-Resources**, and **testing helpers** for host apps.
+On top of the basics it adds **likes / upvotes** and typed reactions, **report-a-comment**
+moderation with an auto-hide listener, **media attachments** with inline `[media:UUID]` body
+rendering, `@mention` parsing, a configurable **blocklist** filter, thread/subject **locking**,
+a fluent **reading & bulk-moderation** query, N+1-free **comment counts**, opt-in
+**authorization** via a policy, ready-made **API Resources**, and **testing helpers** for host
+apps.
+
+The social + moderation + media features build on four sibling roundly packages — see
+[Integrates with](#integrates-with).
 
 ## Requirements
 
 - PHP 8.4 or higher
 - Laravel 12 or 13
+- The `likes`, `reports` (+ `approvals`), `media-library`, and `enums` roundly packages — pulled
+  in automatically as hard dependencies
 
 ## Installation
 
@@ -35,6 +42,10 @@ Publish and run the migration:
 php artisan vendor:publish --tag="comments-migrations"
 php artisan migrate
 ```
+
+The likes, reports, approvals and media-library providers ship their own migrations (the
+`likes`, `reports`, approval-engine, and `media` tables). Publish/run them the same way, per
+each package's README, so comment likes, reports and attachments have somewhere to live.
 
 Optionally publish the config file:
 
@@ -69,6 +80,28 @@ return [
     'blocklist_action' => env('COMMENTS_BLOCKLIST_ACTION', 'reject'),
     'mention_resolver' => null,
     'authorization' => env('COMMENTS_AUTHORIZATION', false),
+
+    // Auto-hide a comment on an upheld report / threshold crossing (reports-for-laravel).
+    'moderation' => [
+        'on_resolved' => 'hide', // 'hide' | null
+        'auto_hide' => true,     // react to the global reports threshold
+    ],
+
+    // Attachments + inline [media:UUID] rendering (media-library-for-laravel).
+    'media' => [
+        'attachments_bucket' => 'attachments',
+        'visibility' => env('COMMENTS_MEDIA_VISIBILITY', 'private'),
+        'disk' => env('COMMENTS_MEDIA_DISK'),
+        'accepted_mime_types' => [],
+        'max_file_size' => null,
+        'responsive_widths' => null,
+        'temporary_url_lifetime' => null,
+        'inline' => [
+            'enabled' => true,
+            'default_variant' => '',
+            'on_missing' => 'strip', // 'strip' | 'keep'
+        ],
+    ],
 ];
 ```
 
@@ -83,6 +116,9 @@ return [
 | `blocklist_action` | `string`            | `reject`         | `COMMENTS_BLOCKLIST_ACTION`  | What to do on a match: `reject` (throw `CommentRejectedException`), `pending`, or `hidden`. |
 | `mention_resolver` | `callable\|null`    | `null`           | —                            | Resolves a parsed `@handle` to an Eloquent model (or `null`). Handles are always stored; resolved ones link to the model and fire `CommentMentioned`. |
 | `authorization`    | `bool`              | `false`          | `COMMENTS_AUTHORIZATION`     | When `true`, write/update/moderation actions consult Laravel's `Gate`. Off by default so existing behaviour is unchanged. |
+| `moderation.on_resolved` | `string\|null` | `hide`         | —                            | Auto-hide a comment when a report against it is upheld (`ReportResolved`). `hide` or `null` to disable. |
+| `moderation.auto_hide` | `bool`            | `true`          | —                            | Auto-hide a comment when it crosses the global `reports.threshold` (`ReportThresholdReached`). |
+| `media`            | `array`             | see above        | `COMMENTS_MEDIA_*`           | The comment's single `attachments` bucket (disk, visibility, accepted types, size, responsive widths, signed-URL lifetime) plus inline `[media:UUID]` body rendering (`enabled`, `default_variant`, `on_missing`). |
 
 The package works with zero configuration — every key has a sensible default.
 
@@ -236,9 +272,7 @@ carrying the comment on its `$comment` property:
 - `CommentUpdated`
 - `CommentDeleted`
 - `CommentApproved`
-- `CommentHidden`
-- `CommentReacted` (`$event->reaction`)
-- `CommentUnreacted` (`$event->comment`, `$event->reaction`, `$event->reactor`)
+- `CommentHidden` (also dispatched by the auto-hide moderation listener)
 - `CommentMentioned` (`$event->mention`)
 
 ```php
@@ -253,17 +287,89 @@ Event::listen(function (CommentCreated $event): void {
 });
 ```
 
-### Reactions
+### Likes / upvotes & ranking
 
-Any model can react to a comment, and reactions are deduplicated per reactor + emoji.
+Comment reactions are powered by [`likes-for-laravel`](https://github.com/roundly-consulting/likes-for-laravel):
+the `Comment` model implements `Likeable`, so any model can like/upvote it. Actors are always
+passed **explicitly** — the package never resolves the acting user from the auth guard.
 
 ```php
-$comment->react('👍', as: $user);   // dispatches CommentReacted (first time only)
-$comment->react('❤️');             // anonymous reaction (no reactor)
-$comment->unreact('👍', as: $user); // returns bool, dispatches CommentUnreacted
+use RoundlyConsulting\Likes\Facades\Likes;
 
-$comment->reactionCounts(); // ['👍' => 3, '❤️' => 1]
-$comment->reactions;        // the CommentReaction models
+Likes::actor($user)->like($comment);
+Likes::actor($user)->unlike($comment);
+Likes::actor($user)->toggle($comment);   // bool: now liked?
+
+$comment->likesCount();        // live or eager count
+$comment->isLikedBy($user);    // bool
+$comment->likeState($viewer);  // ['count' => 2, 'viewer_state' => ['liked' => true, 'reaction' => 'like'], 'breakdown' => ['like' => 2]]
+```
+
+Rank and hydrate a whole thread through the `CommentQuery` builder — most-liked, trending, and
+single-query per-viewer like-state (no N+1):
+
+```php
+Comments::for($post)->orderByLikesDesc()->get();   // "top comments"
+Comments::for($post)->orderByTrending()->get();    // recency-weighted "hot"
+Comments::for($post)->withLikedState($viewer)->get(); // each row: ->is_liked, ->liked_reaction
+```
+
+### Reporting & auto-moderation
+
+Comments are a report subject via [`reports-for-laravel`](https://github.com/roundly-consulting/reports-for-laravel)
+(`Comment implements Reportable`): flag abusive/spam comments with dedup, typed reasons and
+guest reports, and surface a moderation queue. Reporters are always **explicit**.
+
+```php
+use RoundlyConsulting\Reports\Facades\Reports;
+
+Reports::report($comment)->by($user)->for('spam')->create();
+Reports::report($comment)->asGuest($fingerprint)->for('abuse')->create();
+
+$comment->hasBeenReported();
+$comment->isReportedBy($user);
+
+// Moderation queue on the CommentQuery builder:
+Comments::for($post)->mostReported()->get();
+Comments::for($post)->reportedMoreThan(3)->get();
+Comments::for($post)->withReportCounts()->get(); // each row: ->reports_count
+```
+
+When a report is **upheld** (`ReportResolved`) or a comment crosses the global
+`reports.threshold` (`ReportThresholdReached`), a `SyncCommentVisibilityFromReports` listener
+auto-hides the comment (status → `Hidden`, re-emitting `CommentHidden`) — config-gated by
+`comments.moderation`, guarded against non-comment subjects, and idempotent. Because reports
+routes resolution through [`approvals-for-laravel`](https://github.com/roundly-consulting/approvals-for-laravel),
+you get **multi-moderator sign-off** for free:
+
+```php
+Reports::moderate($report)->requiring([$alice, $bob])->rule(ApprovalRule::Quorum)->quorum(2)->open();
+Reports::resolve($report, by: $alice);           // 1/2 — comment stays visible
+Reports::resolve($report, by: $bob);             // quorum reached → comment hidden
+```
+
+### Media attachments & inline media
+
+Comments own a single `attachments` bucket via [`media-library-for-laravel`](https://github.com/roundly-consulting/media-library-for-laravel)
+(`Comment implements HasMedia`): images get responsive variants, other files are stored as
+passthrough originals and served through signed streaming.
+
+```php
+$comment->addMedia($request->file('file'))->toBucket($comment->attachmentsBucket());
+
+$comment->attachments();            // Collection<Media>
+$comment->attachmentUrls('thumb');  // list<string>
+$comment->attachmentUrl($media);    // signed, short-lived URL (private threads)
+```
+
+Embed inline images GitHub/Reddit-style with `[media:UUID]` / `[media:UUID|variant]` tokens in
+the body — resolved only against the comment's own bucket, in a single batched query, never
+throwing on a missing UUID:
+
+```php
+$comment->update(['comment' => "see this [media:{$media->uuid}] 👀"]);
+
+echo $comment->renderBody(); // HtmlString: responsive <img> for images, <a> for other files
 ```
 
 ### @mentions
@@ -354,16 +460,19 @@ throw `UnauthorizedCommentActionException` on denial.
 
 ### API Resources
 
-Drop-in JSON for SPA/mobile backends, with nested replies, author, status, reaction counts,
-and timestamps:
+Drop-in JSON for SPA/mobile backends, with nested replies, author, status, timestamps, and —
+when the relations are loaded — a compact `likes` payload and an `attachments` array:
 
 ```php
 use RoundlyConsulting\Comments\Http\Resources\CommentResource;
 
 return CommentResource::collection(
-    $post->threadedComments()->with(['actor', 'reactions'])->get(),
+    $post->threadedComments()->with(['actor', 'likes', 'media'])->get(),
 );
 ```
+
+The `likes` block (`count` / `viewer_state` / `breakdown`) is rendered only when the `likes`
+relation is loaded, and `attachments` only when `media` is loaded.
 
 ### Testing helpers
 
@@ -382,6 +491,22 @@ $this->assertCommented($post, 'expected body');
 $this->assertCommentCount($post, 3);
 $this->assertNotCommented($post);
 ```
+
+## Integrates with
+
+Comments builds on four sibling roundly packages, wired as hard dependencies (resolved by path
+locally and VCS on CI until they land on Packagist):
+
+| Package | What it powers here |
+|---------|---------------------|
+| [`likes-for-laravel`](https://github.com/roundly-consulting/likes-for-laravel) | Like/upvote a comment, typed reactions, most-liked / trending ranking, single-query per-viewer like-state, `likeState()` payload. |
+| [`reports-for-laravel`](https://github.com/roundly-consulting/reports-for-laravel) | Report-a-comment (dedup, typed reasons, guest reports), moderation-queue scopes, and the `SyncCommentVisibilityFromReports` auto-hide listener. |
+| [`approvals-for-laravel`](https://github.com/roundly-consulting/approvals-for-laravel) | Multi-moderator sign-off on report resolution (inherited transitively through reports). |
+| [`media-library-for-laravel`](https://github.com/roundly-consulting/media-library-for-laravel) | The `attachments` bucket (image variants + signed streaming) and inline `[media:UUID]` body rendering. |
+| [`enums-for-laravel`](https://github.com/roundly-consulting/enums-for-laravel) | `CommentStatus` helper surface (`values()`/`labels()`/`options()`/`validationRule()`/`readable()`). |
+
+Actors, reporters and viewers are always passed **explicitly** across every integration — the
+package never resolves the acting user from the auth guard.
 
 ## Testing
 
