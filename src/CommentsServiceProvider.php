@@ -4,7 +4,11 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Comments;
 
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
+use RoundlyConsulting\Comments\Listeners\SyncCommentVisibilityFromReports;
+use RoundlyConsulting\Reports\Events\ReportResolved;
+use RoundlyConsulting\Reports\Events\ReportThresholdReached;
 
 final class CommentsServiceProvider extends ServiceProvider
 {
@@ -20,6 +24,11 @@ final class CommentsServiceProvider extends ServiceProvider
     {
         $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
         $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'comments');
+
+        // Auto-hide a comment when a report against it is upheld or it crosses the
+        // global reports threshold (config-gated by comments.moderation).
+        Event::listen(ReportResolved::class, [SyncCommentVisibilityFromReports::class, 'handleResolved']);
+        Event::listen(ReportThresholdReached::class, [SyncCommentVisibilityFromReports::class, 'handleThresholdReached']);
 
         if ($this->app->runningInConsole()) {
             $this->publishes([

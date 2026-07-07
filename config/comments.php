@@ -130,4 +130,74 @@ return [
 
     'authorization' => env('COMMENTS_AUTHORIZATION', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Moderation
+    |--------------------------------------------------------------------------
+    |
+    | Integration with roundly-consulting/reports-for-laravel. When a report
+    | against a comment is upheld, or the comment crosses the global reports
+    | threshold (config('reports.threshold')), the comment can be auto-hidden
+    | (status => hidden, re-emitting CommentHidden). Because reports routes
+    | resolution through approvals, this yields multi-moderator moderation with
+    | no extra code. Set both keys to disable auto-moderation entirely.
+    |
+    */
+
+    'moderation' => [
+
+        // Auto-hide a comment when a report against it is upheld (ReportResolved).
+        // 'hide' | null (disable the resolved path).
+        'on_resolved' => 'hide',
+
+        // Auto-hide a comment when its open-report count crosses the global
+        // config('reports.threshold') — reacts to ReportThresholdReached.
+        'auto_hide' => true,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Media
+    |--------------------------------------------------------------------------
+    |
+    | Integration with roundly-consulting/media-library-for-laravel. A comment
+    | owns a single "attachments" bucket (images get responsive variants, other
+    | files are stored as passthrough originals and served via signed streaming),
+    | and the comment body can embed inline media with [media:UUID] tokens that
+    | resolve ONLY against the comment's own bucket, never arbitrary global media.
+    |
+    */
+
+    'media' => [
+
+        // Bucket name the comment registers on the media-library model.
+        'attachments_bucket' => 'attachments',
+
+        // Attachment visibility: 'private' (signed streaming) or 'public'.
+        'visibility' => env('COMMENTS_MEDIA_VISIBILITY', 'private'),
+
+        // Disk for the comment's media. null => the media-library default disk.
+        'disk' => env('COMMENTS_MEDIA_DISK'),
+
+        // Whitelist of accepted mime types. [] => accept any type.
+        'accepted_mime_types' => [],
+
+        // Max attachment size in KB. null => the media-library default.
+        'max_file_size' => null,
+
+        // Responsive width ladder for image attachments.
+        // null => the media-library default ladder (config('media.responsive.widths')).
+        'responsive_widths' => null,
+
+        // Lifetime (minutes) of a signed attachment URL. null => the media default.
+        'temporary_url_lifetime' => null,
+
+        // Inline [media:UUID] / [media:UUID|variant] rendering in the comment body.
+        'inline' => [
+            'enabled' => true,
+            'default_variant' => '',
+            'on_missing' => 'strip', // 'strip' | 'keep'
+        ],
+    ],
+
 ];
