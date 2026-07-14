@@ -27,8 +27,8 @@ The social + moderation + media features build on four sibling roundly packages 
 
 - PHP 8.4 or higher
 - Laravel 12 or 13
-- The `likes`, `reports` (+ `approvals`), `media-library`, and `enums` roundly packages — pulled
-  in automatically as hard dependencies
+- The `likes`, `reports` (+ `approvals`), `media-library`, `enums`, and `package-toolkit` roundly
+  packages — pulled in automatically as hard dependencies
 
 ## Installation
 
@@ -51,6 +51,13 @@ Optionally publish the config file:
 
 ```bash
 php artisan vendor:publish --tag="comments-config"
+```
+
+The package reports its active configuration (model, limits, moderation and media switches) to
+Laravel's `about` command — the blocklist is reported as a count, never as terms:
+
+```bash
+php artisan about --only=comments
 ```
 
 And, if you want to translate the package's messages, publish the language files:
@@ -494,11 +501,12 @@ $this->assertNotCommented($post);
 
 ## Integrates with
 
-Comments builds on four sibling roundly packages, wired as hard dependencies (resolved by path
+Comments builds on sibling roundly packages, wired as hard dependencies (resolved by path
 locally and VCS on CI until they land on Packagist):
 
 | Package | What it powers here |
 |---------|---------------------|
+| [`package-toolkit-for-laravel`](https://github.com/roundly-consulting/package-toolkit-for-laravel) | The service-provider builder (config/migrations/translations wiring + the `php artisan about` section) and the validated `comments.model` resolver. |
 | [`likes-for-laravel`](https://github.com/roundly-consulting/likes-for-laravel) | Like/upvote a comment, typed reactions, most-liked / trending ranking, single-query per-viewer like-state, `likeState()` payload. |
 | [`reports-for-laravel`](https://github.com/roundly-consulting/reports-for-laravel) | Report-a-comment (dedup, typed reasons, guest reports), moderation-queue scopes, and the `SyncCommentVisibilityFromReports` auto-hide listener. |
 | [`approvals-for-laravel`](https://github.com/roundly-consulting/approvals-for-laravel) | Multi-moderator sign-off on report resolution (inherited transitively through reports). |
