@@ -36,12 +36,17 @@ The social + moderation + media features build on four sibling roundly packages 
 composer require roundly-consulting/comments-for-laravel
 ```
 
-Publish and run the migration:
+The package does **not** auto-load its migrations — you own them. Publish the migration into
+your app, then run it:
 
 ```bash
 php artisan vendor:publish --tag="comments-migrations"
 php artisan migrate
 ```
+
+The publish copies `create_comments_table` into `database/migrations` with a fresh timestamp;
+republishing with `--force` overwrites that same file instead of adding a second copy. Without
+the publish step, `php artisan migrate` will not create the `comments` table.
 
 The likes, reports, approvals and media-library providers ship their own migrations (the
 `likes`, `reports`, approval-engine, and `media` tables). Publish/run them the same way, per
