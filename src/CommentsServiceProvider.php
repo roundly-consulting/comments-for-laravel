@@ -5,43 +5,56 @@ declare(strict_types=1);
 namespace RoundlyConsulting\Comments;
 
 use Illuminate\Support\Facades\Event;
-use Illuminate\Support\ServiceProvider;
 use RoundlyConsulting\Comments\Listeners\SyncCommentVisibilityFromReports;
+use RoundlyConsulting\Comments\Support\CommentModel;
+use RoundlyConsulting\PackageToolkit\Package;
+use RoundlyConsulting\PackageToolkit\PackageServiceProvider;
 use RoundlyConsulting\Reports\Events\ReportResolved;
 use RoundlyConsulting\Reports\Events\ReportThresholdReached;
 
-final class CommentsServiceProvider extends ServiceProvider
+final class CommentsServiceProvider extends PackageServiceProvider
 {
+    public function configurePackage(Package $package): void
+    {
+        $package
+            ->name('comments')
+            ->hasConfigFile()
+            ->hasMigrations()
+            ->hasTranslations()
+            ->contributesToAbout(static fn (): array => [
+                'Model' => class_basename(CommentModel::class()),
+                'Require approval' => config('comments.require_approval') === true ? 'ON' : 'OFF',
+                'Max length' => ((int) config('comments.max_length', 5000)).' chars',
+                'Max depth' => (string) (int) config('comments.max_depth', 5),
+                // A count, never the terms — a blocklist is moderation-sensitive.
+                'Blocklist' => self::blocklistSize() === 0 ? 'NONE' : self::blocklistSize().' term(s)',
+                'Authorization' => config('comments.authorization') === true ? 'ON' : 'OFF',
+                'Auto-moderation' => config('comments.moderation.auto_hide') === true ? 'ON' : 'OFF',
+                'Inline media' => config('comments.media.inline.enabled') === true ? 'ON' : 'OFF',
+            ]);
+    }
+
     public function register(): void
     {
-        // Merge so the host app only needs to publish/override what it wants.
-        $this->mergeConfigFrom(__DIR__.'/../config/comments.php', 'comments');
+        parent::register();
 
         $this->app->singleton(CommentManager::class);
     }
 
     public function boot(): void
     {
-        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
-        $this->loadTranslationsFrom(__DIR__.'/../resources/lang', 'comments');
+        parent::boot();
 
         // Auto-hide a comment when a report against it is upheld or it crosses the
         // global reports threshold (config-gated by comments.moderation).
         Event::listen(ReportResolved::class, [SyncCommentVisibilityFromReports::class, 'handleResolved']);
         Event::listen(ReportThresholdReached::class, [SyncCommentVisibilityFromReports::class, 'handleThresholdReached']);
+    }
 
-        if ($this->app->runningInConsole()) {
-            $this->publishes([
-                __DIR__.'/../config/comments.php' => config_path('comments.php'),
-            ], 'comments-config');
+    private static function blocklistSize(): int
+    {
+        $blocklist = config('comments.blocklist', []);
 
-            $this->publishes([
-                __DIR__.'/../database/migrations' => database_path('migrations'),
-            ], 'comments-migrations');
-
-            $this->publishes([
-                __DIR__.'/../resources/lang' => $this->app->langPath('vendor/comments'),
-            ], 'comments-translations');
-        }
+        return is_array($blocklist) ? count($blocklist) : 0;
     }
 }
