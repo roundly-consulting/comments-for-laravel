@@ -54,8 +54,9 @@ abstract class TestCase extends Orchestra
 
     private function setUpDatabase(): void
     {
-        $migration = include __DIR__.'/../database/migrations/0001_01_01_000000_create_comments_table.php';
-        $migration->up();
+        // The package publishes its migrations rather than auto-loading them, so the
+        // suite runs them itself — exactly like a host app does after publishing.
+        $this->loadMigrationsFrom(__DIR__.'/../database/migrations');
 
         // Media-library ships the `media` table the comment attachments bucket persists into.
         $mediaPackage = dirname((string) (new ReflectionClass(MediaLibraryServiceProvider::class))->getFileName(), 2);
