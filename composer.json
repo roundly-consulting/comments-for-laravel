@@ -75,6 +75,18 @@
             "type": "vcs",
             "url": "https://github.com/roundly-consulting/media-library-for-laravel",
             "no-api": true
+        },
+        {
+            "type": "path",
+            "url": "../package-toolkit-for-laravel*",
+            "options": {
+                "symlink": true
+            }
+        },
+        {
+            "type": "vcs",
+            "url": "https://github.com/roundly-consulting/package-toolkit-for-laravel",
+            "no-api": true
         }
     ],
     "require": {
@@ -84,6 +96,7 @@
         "roundly-consulting/enums-for-laravel": "@dev",
         "roundly-consulting/likes-for-laravel": "@dev",
         "roundly-consulting/media-library-for-laravel": "@dev",
+        "roundly-consulting/package-toolkit-for-laravel": "@dev",
         "roundly-consulting/reports-for-laravel": "@dev"
     },
     "require-dev": {
