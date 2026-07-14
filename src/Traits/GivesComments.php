@@ -9,16 +9,14 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use RoundlyConsulting\Comments\Actions\WriteCommentAction;
 use RoundlyConsulting\Comments\DataTransferObjects\WriteCommentData;
 use RoundlyConsulting\Comments\Models\Comment;
+use RoundlyConsulting\Comments\Support\CommentModel;
 
 trait GivesComments
 {
     /** @return MorphMany<Comment, $this> */
     public function writtenComments(): MorphMany
     {
-        /** @var class-string<Comment> $model */
-        $model = config('comments.model', Comment::class);
-
-        return $this->morphMany($model, 'actor');
+        return $this->morphMany(CommentModel::class(), 'actor');
     }
 
     public function writeComment(Model $commentable, string $comment, bool $visible = true): Comment

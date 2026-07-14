@@ -13,6 +13,7 @@ use RoundlyConsulting\Comments\Actions\DeleteCommentAction;
 use RoundlyConsulting\Comments\Actions\HideCommentAction;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Models\Comment;
+use RoundlyConsulting\Comments\Support\CommentModel;
 
 /**
  * A fluent read/moderation side mirroring the write builder. Scope it to a
@@ -27,10 +28,7 @@ final class CommentQuery
 
     public function __construct()
     {
-        /** @var class-string<Comment> $model */
-        $model = config('comments.model', Comment::class);
-
-        $this->query = $model::query();
+        $this->query = CommentModel::class()::query();
     }
 
     public function for(Model $subject): self

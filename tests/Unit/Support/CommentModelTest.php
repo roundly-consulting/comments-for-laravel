@@ -1,0 +1,31 @@
+<?php
+
+declare(strict_types=1);
+
+use RoundlyConsulting\Comments\Models\Comment;
+use RoundlyConsulting\Comments\Support\CommentModel;
+use RoundlyConsulting\Comments\Tests\ActorTestModel;
+use RoundlyConsulting\Comments\Tests\CustomCommentTestModel;
+use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
+
+it('resolves the packaged model by default', function (): void {
+    expect(CommentModel::class())->toBe(Comment::class);
+});
+
+it('resolves a configured model that extends the packaged one', function (): void {
+    config()->set('comments.model', CustomCommentTestModel::class);
+
+    expect(CommentModel::class())->toBe(CustomCommentTestModel::class);
+});
+
+it('falls back to the packaged model when the configured model is not a comment', function (): void {
+    config()->set('comments.model', ActorTestModel::class);
+
+    expect(CommentModel::class())->toBe(Comment::class);
+});
+
+it('throws when the configured model is not an eloquent model', function (): void {
+    config()->set('comments.model', 'NotAModel');
+
+    CommentModel::class();
+})->throws(InvalidConfigurationException::class);

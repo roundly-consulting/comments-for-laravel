@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Events\CommentHidden;
 use RoundlyConsulting\Comments\Models\Comment;
+use RoundlyConsulting\Comments\Support\CommentModel;
 use RoundlyConsulting\Reports\Events\ReportResolved;
 use RoundlyConsulting\Reports\Events\ReportThresholdReached;
 
@@ -74,13 +75,8 @@ final class SyncCommentVisibilityFromReports
             return null;
         }
 
-        $configured = config('comments.model', Comment::class);
-        $model = is_string($configured) ? $configured : Comment::class;
+        $model = CommentModel::class();
 
-        if (! $subject instanceof $model) {
-            return null;
-        }
-
-        return $subject instanceof Comment ? $subject : null;
+        return $subject instanceof $model ? $subject : null;
     }
 }

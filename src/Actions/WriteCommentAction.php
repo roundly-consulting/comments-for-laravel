@@ -15,6 +15,7 @@ use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Models\CommentLock;
 use RoundlyConsulting\Comments\Support\Blocklist;
 use RoundlyConsulting\Comments\Support\CommentAuthorizer;
+use RoundlyConsulting\Comments\Support\CommentModel;
 
 final class WriteCommentAction
 {
@@ -36,10 +37,7 @@ final class WriteCommentAction
 
         $status = $this->resolveStatus($body);
 
-        /** @var class-string<Comment> $model */
-        $model = config('comments.model', Comment::class);
-
-        $comment = $model::query()->create([
+        $comment = CommentModel::class()::query()->create([
             'parent_id' => $data->parent?->getKey(),
             'actor_id' => $data->author?->getKey(),
             'actor_type' => $data->author?->getMorphClass(),

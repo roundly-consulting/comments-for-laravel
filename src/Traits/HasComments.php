@@ -9,16 +9,14 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Models\CommentLock;
+use RoundlyConsulting\Comments\Support\CommentModel;
 
 trait HasComments
 {
     /** @return MorphMany<Comment, $this> */
     public function comments(): MorphMany
     {
-        /** @var class-string<Comment> $model */
-        $model = config('comments.model', Comment::class);
-
-        return $this->morphMany($model, 'commentable');
+        return $this->morphMany(CommentModel::class(), 'commentable');
     }
 
     /**
