@@ -19,6 +19,7 @@ use RoundlyConsulting\Comments\Concerns\HasCommentReports;
 use RoundlyConsulting\Comments\Database\Factories\CommentFactory;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Events\CommentCreated;
+use RoundlyConsulting\Comments\Support\CommentModel;
 use RoundlyConsulting\Comments\Traits\HasComments;
 use RoundlyConsulting\Likes\Contracts\Likeable;
 use RoundlyConsulting\MediaLibrary\Contracts\HasMedia;
@@ -75,16 +76,30 @@ class Comment extends Model implements HasMedia, Likeable, Reportable
         return $this->morphTo();
     }
 
-    /** @return BelongsTo<Comment, $this> */
+    /**
+     * The parent of a reply, resolved through the `comments.model` seam.
+     *
+     * `self::class` would bind to the class that DEFINED this method, not the configured
+     * one, so a host that swapped `comments.model` got its own class from the write flow
+     * and the packaged Comment back from here — its casts, accessors and model events
+     * silently never applying to a parent. `CommentModel::class()` is the same seam every
+     * other call site already used.
+     *
+     * @return BelongsTo<Comment, $this>
+     */
     public function parent(): BelongsTo
     {
-        return $this->belongsTo(self::class, 'parent_id');
+        return $this->belongsTo(CommentModel::class(), 'parent_id');
     }
 
-    /** @return HasMany<Comment, $this> */
+    /**
+     * A comment's replies, resolved through the `comments.model` seam — see {@see parent()}.
+     *
+     * @return HasMany<Comment, $this>
+     */
     public function replies(): HasMany
     {
-        return $this->hasMany(self::class, 'parent_id');
+        return $this->hasMany(CommentModel::class(), 'parent_id');
     }
 
     /** @return HasMany<CommentMention, $this> */
