@@ -17,7 +17,7 @@ declare(strict_types=1);
  *    soil dead config grows in.
  */
 it('ships exactly the config keys it reads', function (): void {
-    expect(__DIR__.'/../../config/comments.php')->toSatisfyConfigContract(__DIR__.'/../../src', [
+    expect(__DIR__.'/../../config/comments.php')->toSatisfyConfigContract([__DIR__.'/../../src', __DIR__.'/../../database'], [
         // `comments.model` is read through the toolkit's `ModelResolver::for('comments.model', …)`
         // seam rather than a `config()` call. It is a real read — it drives the whole model
         // swap — but it is not a `config(` token, so the prefix is what makes it visible to
@@ -26,7 +26,9 @@ it('ships exactly the config keys it reads', function (): void {
         // translation keys like `comments::comments.locked`, which are not config keys at
         // all and would silently satisfy the reverse direction (the trap alerts hit with its
         // `alerts.health` route name).
-        'extraReadPrefixes' => ['comments.model'],
+        // `comments.key_type` is read through `KeyType::fromConfig(…)` in the migration
+        // (a scanned `database/` path), not a `config(` token, so it is named here too.
+        'extraReadPrefixes' => ['comments.model', 'comments.key_type'],
 
         // Deliberately NO `excludeFromReverse` for the provider. The testing README's own
         // example excludes the service provider on the grounds that "a render is not a

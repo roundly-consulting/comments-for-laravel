@@ -7,6 +7,7 @@ namespace RoundlyConsulting\Comments;
 use Illuminate\Support\Facades\Event;
 use RoundlyConsulting\Comments\Listeners\SyncCommentVisibilityFromReports;
 use RoundlyConsulting\Comments\Support\CommentModel;
+use RoundlyConsulting\PackageToolkit\Concerns\RegistersBlueprintMacros;
 use RoundlyConsulting\PackageToolkit\Package;
 use RoundlyConsulting\PackageToolkit\PackageServiceProvider;
 use RoundlyConsulting\Reports\Events\ReportResolved;
@@ -14,6 +15,8 @@ use RoundlyConsulting\Reports\Events\ReportThresholdReached;
 
 final class CommentsServiceProvider extends PackageServiceProvider
 {
+    use RegistersBlueprintMacros;
+
     public function configurePackage(Package $package): void
     {
         $package
@@ -44,6 +47,11 @@ final class CommentsServiceProvider extends PackageServiceProvider
     public function boot(): void
     {
         parent::boot();
+
+        // The comments migrations key their polymorphic columns through the toolkit's
+        // `morphKey` macro, so it must exist before they run. Registration is idempotent —
+        // the toolkit guards it with `hasMacro()`.
+        $this->registerBlueprintMacros();
 
         // Auto-hide a comment when a report against it is upheld or it crosses the
         // global reports threshold (config-gated by comments.moderation).
