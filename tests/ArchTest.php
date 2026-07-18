@@ -28,14 +28,13 @@ ArchPresets::strictTypes('RoundlyConsulting\Comments');
  *  - CommentPolicy, which hosts extend to override single abilities (the shipped
  *    DenyingCommentPolicy fixture does exactly this).
  */
-ArchPresets::finalByDefault('RoundlyConsulting\Comments')
-    ->ignoring([
-        Comment::class,
-        CommentMention::class,
-        CommentLock::class,
-        CommentsException::class,
-        CommentPolicy::class,
-    ]);
+ArchPresets::finalByDefault('RoundlyConsulting\Comments', [
+    Comment::class,
+    CommentMention::class,
+    CommentLock::class,
+    CommentsException::class,
+    CommentPolicy::class,
+]);
 
 /**
  * The counter-weight, and the fleet's 7×-shipped fatal: `final` on a config-swappable model
