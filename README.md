@@ -467,8 +467,32 @@ use RoundlyConsulting\Comments\Policies\CommentPolicy;
 Gate::policy(Comment::class, CommentPolicy::class);
 ```
 
-When enabled, the actions check the `create`, `update`, `delete`, and `moderate` abilities and
-throw `UnauthorizedCommentActionException` on denial.
+When enabled, the actions check the `create`, `update`, `delete`, and `moderate` abilities of
+the `Comment` policy (a policy registered for `Comment` also covers a subclass configured in
+`comments.model`) and throw `UnauthorizedCommentActionException` on denial. With nothing
+registered, Laravel's policy auto-discovery resolves the shipped, permissive `CommentPolicy`.
+
+`create` also receives the subject being commented on — for a reply, the root subject the reply
+joins — so you can decide per subject. `$user` is `null` for a guest:
+
+```php
+public function create(?Model $user, ?Model $commentable = null): bool
+{
+    return $user !== null && $commentable instanceof Project && $commentable->hasMember($user);
+}
+```
+
+The package ships no routes, so the exception is not an HTTP exception. To answer `403` from
+your own controllers, map it onto Laravel's `AuthorizationException` in `bootstrap/app.php`:
+
+```php
+use Illuminate\Auth\Access\AuthorizationException;
+use RoundlyConsulting\Comments\Exceptions\UnauthorizedCommentActionException;
+
+->withExceptions(function (Exceptions $exceptions): void {
+    $exceptions->map(fn (UnauthorizedCommentActionException $e) => new AuthorizationException($e->getMessage()));
+})
+```
 
 ### API Resources
 

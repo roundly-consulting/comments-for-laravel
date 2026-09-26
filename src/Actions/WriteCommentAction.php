@@ -27,7 +27,10 @@ final class WriteCommentAction
 
     public function execute(WriteCommentData $data): Comment
     {
-        $this->authorizer->authorize('create');
+        // The Comment model class routes the check to the Comment policy's `create` ability
+        // (a bare ability name would only ever hit a global gate of that name), and the
+        // subject lets the policy decide per subject: `create(?Model $user, ?Model $commentable)`.
+        $this->authorizer->authorize('create', [CommentModel::class(), $this->subject($data)]);
 
         $body = $this->validateBody($data->body);
 
@@ -107,6 +110,23 @@ final class WriteCommentAction
         if ($locked) {
             throw CommentsLockedException::make();
         }
+    }
+
+    /**
+     * The model actually being commented on: a reply belongs to its parent's subject, not to
+     * whatever subject the caller passed alongside it.
+     */
+    private function subject(WriteCommentData $data): ?Model
+    {
+        if (! $data->parent instanceof Comment) {
+            return $data->commentable;
+        }
+
+        // Read through the relation loader rather than the `@property-read` docblock: a
+        // subject deleted since the parent was written resolves to null, not a Model.
+        $subject = $data->parent->getRelationValue('commentable');
+
+        return $subject instanceof Model ? $subject : null;
     }
 
     /**

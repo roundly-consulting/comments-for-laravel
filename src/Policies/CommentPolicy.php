@@ -12,10 +12,14 @@ use RoundlyConsulting\Comments\Models\Comment;
  * override the methods to gate who may comment, edit, or moderate. Every
  * ability returns true by default so opting in does not change behaviour until
  * you customise it.
+ *
+ * The checks only run when `comments.authorization` is on. `create` receives the
+ * subject being commented on (for a reply: the root subject the reply joins), so
+ * a policy can decide per subject; `$user` is null for a guest.
  */
 class CommentPolicy
 {
-    public function create(?Model $user): bool
+    public function create(?Model $user, ?Model $commentable = null): bool
     {
         return true;
     }

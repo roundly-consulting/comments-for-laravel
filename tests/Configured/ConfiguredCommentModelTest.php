@@ -2,10 +2,14 @@
 
 declare(strict_types=1);
 
+use Illuminate\Support\Facades\Gate;
 use RoundlyConsulting\Comments\Actions\WriteCommentAction;
 use RoundlyConsulting\Comments\DataTransferObjects\WriteCommentData;
+use RoundlyConsulting\Comments\Exceptions\UnauthorizedCommentActionException;
+use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Tests\ActorTestModel;
 use RoundlyConsulting\Comments\Tests\CustomCommentTestModel;
+use RoundlyConsulting\Comments\Tests\DenyingCommentPolicy;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
 
 /**
@@ -92,3 +96,14 @@ it('resolves the threading relations through the configured model', function ():
         ->and($root->replies->first()::class)->toBe(CustomCommentTestModel::class)
         ->and($reply->parent->first()?->id ?? $reply->parent->id)->toBe($root->getKey());
 });
+
+/**
+ * The create check names the configured model class, so a policy registered for the packaged
+ * Comment still governs a swapped subclass (Laravel matches policies by `is_subclass_of`).
+ */
+it('authorizes a write on the configured model against the Comment policy', function (): void {
+    config()->set('comments.authorization', true);
+    Gate::policy(Comment::class, DenyingCommentPolicy::class);
+
+    ActorTestModel::create()->writeComment(commentable: PostTestModel::create(), comment: 'nope');
+})->throws(UnauthorizedCommentActionException::class);
