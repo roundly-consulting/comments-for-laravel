@@ -105,6 +105,7 @@ return [
         'attachments_bucket' => 'attachments',
         'visibility' => env('COMMENTS_MEDIA_VISIBILITY', 'private'),
         'disk' => env('COMMENTS_MEDIA_DISK'),
+        'private_disk' => env('COMMENTS_MEDIA_PRIVATE_DISK', 'local'),
         'accepted_mime_types' => [],
         'max_file_size' => null,
         'responsive_widths' => null,
@@ -132,7 +133,7 @@ return [
 | `authorization`    | `bool`              | `false`          | `COMMENTS_AUTHORIZATION`     | When `true`, every mutation (create, update, delete, restore, moderate, lock, unlock) consults the `Comment` policy. Off by default so existing behaviour is unchanged. |
 | `moderation.on_resolved` | `string\|null` | `hide`         | —                            | Auto-hide a comment when a report against it is upheld (`ReportResolved`). `hide` or `null` to disable. |
 | `moderation.auto_hide` | `bool`            | `true`          | —                            | Auto-hide a comment when it crosses the global `reports.threshold` (`ReportThresholdReached`). |
-| `media`            | `array`             | see above        | `COMMENTS_MEDIA_*`           | The comment's single `attachments` bucket (disk, visibility, accepted types, size, responsive widths, signed-URL lifetime) plus inline `[media:UUID]` body rendering (`enabled`, `default_variant`, `on_missing`). |
+| `media`            | `array`             | see above        | `COMMENTS_MEDIA_*`           | The comment's single `attachments` bucket (disk, private disk, visibility, accepted types, size, responsive widths, signed-URL lifetime) plus inline `[media:UUID]` body rendering (`enabled`, `default_variant`, `on_missing`). With `disk` unset, private attachments (and their variants) go to `private_disk` (`local`), public ones to media-library's default disk. |
 
 The package works with zero configuration — every key has a sensible default.
 
@@ -381,11 +382,13 @@ Attachments are **private by default** (`comments.media.visibility`). A private 
 only ever linked through a short-lived signed URL — `attachmentUrls()`, inline media in
 `renderBody()` and `CommentResource` all resolve it that way, never to a public URL.
 
-> [!IMPORTANT]
-> Signed URLs protect the link, not the bytes. With `comments.media.disk` unset, attachments are
-> stored on media-library's default disk — `public` unless you changed `media.disk` — which
-> `php artisan storage:link` exposes under `/storage`. Store private attachments on a disk that
-> is not web-served, e.g. `COMMENTS_MEDIA_DISK=local` or a private S3 disk.
+Signed URLs protect the link, so the bytes must not be reachable any other way: with
+`comments.media.disk` unset, private attachments (and their variants) are stored on
+`comments.media.private_disk` — Laravel's `local` disk (`storage/app/private`) by default — never
+on media-library's default `public` disk, which `php artisan storage:link` exposes under
+`/storage`. Point `COMMENTS_MEDIA_PRIVATE_DISK` at another non-public disk (e.g. a private S3
+disk) if you like; if you set `COMMENTS_MEDIA_DISK` yourself, that disk is used for every
+attachment, so keep it non-public while attachments are private.
 
 Embed inline images GitHub/Reddit-style with `[media:UUID]` / `[media:UUID|variant]` tokens in
 the body — resolved only against the comment's own bucket, in a single batched query, never

@@ -21,6 +21,7 @@ use RoundlyConsulting\MediaLibrary\Models\Media;
  */
 beforeEach(function (): void {
     Storage::fake('public');
+    Storage::fake('local');
     $this->freezeSecond();
 });
 
@@ -33,13 +34,13 @@ function privateCommentWith(UploadedFile $file): array
     return [$comment, $media];
 }
 
-/** Every URL the disk would publish for this media (original + generated variants). */
+/** Every URL the public disk would publish for this media (original + generated variants). */
 function publicDiskUrls(Media $media): array
 {
-    $urls = [Storage::disk($media->disk)->url($media->getPath())];
+    $urls = [Storage::disk('public')->url($media->getPath())];
 
     foreach (array_keys($media->generated_variants ?? []) as $variant) {
-        $urls[] = Storage::disk($media->diskFor((string) $variant))->url($media->getPath((string) $variant));
+        $urls[] = Storage::disk('public')->url($media->getPath((string) $variant));
     }
 
     return $urls;
@@ -121,21 +122,83 @@ it('exposes signed urls for private attachments in the resource', function (): v
     ]);
 });
 
-it('streams a private attachment through a valid signed route on a plain local disk', function (): void {
-    // A real (not faked) local disk has no native temporary URLs, so media degrades to its
-    // signed streaming route — the path a default host's private attachments actually take.
+/*
+ * Signed URLs only protect the link. Private attachments used to be written to media-library's
+ * default disk — the web-served `public` disk — so the file itself sat under /storage for anyone
+ * with the path. They now default to `comments.media.private_disk` ('local').
+ */
+
+it('stores private attachments and their variants on the private disk', function (): void {
+    [, $media] = privateCommentWith(UploadedFile::fake()->image('shot.jpg', 800, 600));
+
+    expect($media->disk)->toBe('local')
+        ->and($media->diskFor('responsive-320'))->toBe('local')
+        ->and(Storage::disk('local')->exists($media->getPath()))->toBeTrue()
+        ->and(Storage::disk('local')->exists($media->getPath('responsive-320')))->toBeTrue()
+        ->and(Storage::disk('public')->allFiles())->toBe([]);
+});
+
+it('keeps private variants off a globally configured public variants disk', function (): void {
+    config()->set('media.variants_disk', 'public');
+
+    [, $media] = privateCommentWith(UploadedFile::fake()->image('shot.jpg', 800, 600));
+
+    expect($media->diskFor('responsive-320'))->toBe('local')
+        ->and(Storage::disk('public')->allFiles())->toBe([]);
+});
+
+it('honours a configured private disk', function (): void {
+    config()->set('filesystems.disks.vault', ['driver' => 'local', 'root' => storage_path('app/vault')]);
+    Storage::fake('vault');
+    config()->set('comments.media.private_disk', 'vault');
+
+    [, $media] = privateCommentWith(UploadedFile::fake()->create('brief.pdf', 12, 'application/pdf'));
+
+    expect($media->disk)->toBe('vault');
+});
+
+it('lets an explicit disk win and keeps public attachments on the media default disk', function (): void {
+    config()->set('comments.media.visibility', 'public');
+    [, $public] = privateCommentWith(UploadedFile::fake()->create('open.pdf', 12, 'application/pdf'));
+
+    config()->set('comments.media.visibility', 'private');
+    config()->set('comments.media.disk', 'public');
+    [, $explicit] = privateCommentWith(UploadedFile::fake()->create('brief.pdf', 12, 'application/pdf'));
+
+    expect($public->disk)->toBe('public')
+        ->and($explicit->disk)->toBe('public');
+});
+
+it('serves a private attachment from the real private disk through the signed stream route', function (): void {
+    // A real (not faked) local disk: no native temporary URLs, so media mints its own signed
+    // streaming route — the path a default host's private attachments take. The route must
+    // stream the bytes from the private disk, and refuse the link once it is tampered with.
+    // The stream route sits behind the `web` group, whose cookie encryption needs a key.
+    config()->set('app.key', 'base64:'.base64_encode(random_bytes(32)));
+
     $root = sys_get_temp_dir().'/comments-private-'.bin2hex(random_bytes(4));
-    config()->set('filesystems.disks.comments-private', ['driver' => 'local', 'root' => $root]);
-    config()->set('comments.media.disk', 'comments-private');
+    config()->set('filesystems.disks.local', ['driver' => 'local', 'root' => $root]);
+    Storage::forgetDisk('local');
 
     try {
-        [$comment, $media] = privateCommentWith(UploadedFile::fake()->create('brief.pdf', 12, 'application/pdf'));
+        [$comment, $media] = privateCommentWith(UploadedFile::fake()->createWithContent('brief.txt', 'private bytes'));
 
-        $url = $comment->attachmentUrls()[0];
+        $url = $comment->attachmentUrl($media);
 
-        expect(URL::hasValidSignature(Request::create($url)))->toBeTrue()
-            ->and($url)->toContain($media->uuid);
+        expect($media->disk)->toBe('local')
+            ->and(is_file($root.'/'.$media->getPath()))->toBeTrue()
+            ->and(URL::hasValidSignature(Request::create($url)))->toBeTrue();
+
+        $response = $this->get($url);
+
+        $response->assertOk();
+        expect($response->streamedContent())->toBe('private bytes');
+
+        $this->get($url.'0')->assertForbidden();
+
+        expect(Storage::disk('public')->exists($media->getPath()))->toBeFalse();
     } finally {
+        Storage::forgetDisk('local');
         File::deleteDirectory($root);
     }
 });

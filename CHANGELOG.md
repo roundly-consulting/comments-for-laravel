@@ -21,9 +21,7 @@ All notable changes to `comments-for-laravel` will be documented in this file.
   `renderBody()` and `CommentResource`'s `attachments[].url` asked media-library for the
   attachment's public URL, which it refuses for private media — so on the default config each of
   them threw `MediaCannotBeStreamed`. They now go through the new `resolveAttachmentUrl()`
-  (public URL for public media, signed URL for private media). The config and README also warn
-  that the default media disk (`public`) is web-served, so private attachments belong on a
-  non-public disk.
+  (public URL for public media, signed URL for private media).
 - `approveAll()` / `hideAll()` / `deleteAll()` on a `CommentQuery` now reach every match. They
   walked the query in offset pages of 1000, and each page they moderated left the filtered set
   (e.g. `pending()->approveAll()`), so the next offset skipped a page's worth of comments — with
@@ -46,3 +44,9 @@ All notable changes to `comments-for-laravel` will be documented in this file.
   carry the warning and the safe alternatives (`{{ $comment->comment }}` for plain text; escape
   at write time or sanitize the output for inline media). The behaviour itself is unchanged and
   pinned by tests.
+- Private attachments are now stored on a non-public disk by default: new
+  `comments.media.private_disk` (`COMMENTS_MEDIA_PRIVATE_DISK`, default `local`) holds private
+  originals and their variants whenever `comments.media.disk` is unset. They used to land on
+  media-library's default `public` disk — served under `/storage` once `storage:link` runs — so a
+  private file was reachable without its signed URL. The signed stream route serves them from the
+  private disk.

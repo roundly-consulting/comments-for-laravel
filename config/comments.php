@@ -194,10 +194,16 @@ return [
         // or 'public'.
         'visibility' => env('COMMENTS_MEDIA_VISIBILITY', 'private'),
 
-        // Disk for the comment's media. null => the media-library default disk, which is
-        // 'public' out of the box — web-served under /storage once `storage:link` runs. Keep
-        // private attachments on a disk that is not web-served ('local', a private S3 disk).
+        // Disk for the comment's media, whatever its visibility. null => chosen by visibility:
+        // private attachments go to 'private_disk' below, public ones to the media-library
+        // default disk ('public' out of the box).
         'disk' => env('COMMENTS_MEDIA_DISK'),
+
+        // Disk for PRIVATE attachments (originals and variants) when 'disk' is null. It must
+        // not be web-served — the media-library default 'public' disk is (under /storage once
+        // `storage:link` runs), which would make a private file reachable without a signature.
+        // Laravel's 'local' disk (storage/app/private) is not; a private S3 disk works too.
+        'private_disk' => env('COMMENTS_MEDIA_PRIVATE_DISK', 'local'),
 
         // Whitelist of accepted mime types. [] => accept any type.
         'accepted_mime_types' => [],

@@ -176,6 +176,13 @@ trait HasCommentMedia
 
         if (is_string($disk) && $disk !== '') {
             $bucket->useDisk($disk);
+        } elseif ($this->attachmentsVisibility() === 'private') {
+            // A private attachment must not land on media-library's default disk: that is the
+            // web-served `public` disk, where the file is reachable under /storage without the
+            // signed URL. Its variants follow it, whatever `media.variants_disk` says.
+            $privateDisk = $this->privateAttachmentsDisk();
+
+            $bucket->useDisk($privateDisk)->storingVariantsOnDisk($privateDisk);
         }
 
         $widths = config('comments.media.responsive_widths');
@@ -185,6 +192,13 @@ trait HasCommentMedia
         );
 
         return $bucket;
+    }
+
+    private function privateAttachmentsDisk(): string
+    {
+        $disk = config('comments.media.private_disk', 'local');
+
+        return is_string($disk) && $disk !== '' ? $disk : 'local';
     }
 
     private function temporaryUrlExpiry(): DateTimeInterface
