@@ -95,7 +95,7 @@ final class WriteCommentAction
         };
     }
 
-    private function guardLocked(WriteCommentData $data, string $commentableType, int $commentableId): void
+    private function guardLocked(WriteCommentData $data, string $commentableType, int|string $commentableId): void
     {
         // A locked reply chain blocks further replies to it.
         if ($data->parent instanceof Comment && $data->parent->isLocked()) {
@@ -133,17 +133,27 @@ final class WriteCommentAction
      * A reply inherits the parent's subject morph so replies stay attached to
      * the root subject (e.g. the post), keeping flat listings correct.
      *
-     * @return array{0: string, 1: int}
+     * The key is kept as the subject returns it: `comments.key_type` lets a host key its
+     * subjects by uuid/ulid, and an integer cast would store `0` (or a digit prefix) for them.
+     *
+     * @return array{0: string, 1: int|string}
      */
     private function resolveSubject(WriteCommentData $data): array
     {
         if (! $data->parent instanceof Comment) {
-            return [$data->commentable->getMorphClass(), (int) $data->commentable->getKey()];
+            return [$data->commentable->getMorphClass(), $this->subjectKey($data->commentable)];
         }
 
         $this->guardReplyDepth($data->parent);
 
         return [$data->parent->commentable_type, $data->parent->commentable_id];
+    }
+
+    private function subjectKey(Model $subject): int|string
+    {
+        $key = $subject->getKey();
+
+        return is_int($key) ? $key : (string) $key;
     }
 
     private function guardReplyDepth(Comment $parent): void

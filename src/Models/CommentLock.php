@@ -12,7 +12,7 @@ use RoundlyConsulting\Comments\Database\Factories\CommentLockFactory;
 
 /**
  * @property int $id
- * @property int $lockable_id
+ * @property int|string $lockable_id
  * @property string $lockable_type
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at

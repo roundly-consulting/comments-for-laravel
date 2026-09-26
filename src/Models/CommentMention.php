@@ -15,7 +15,7 @@ use RoundlyConsulting\Comments\Database\Factories\CommentMentionFactory;
  * @property int $id
  * @property int $comment_id
  * @property string $handle
- * @property int|null $mentionable_id
+ * @property int|string|null $mentionable_id
  * @property string|null $mentionable_type
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at

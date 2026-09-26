@@ -30,9 +30,9 @@ use RoundlyConsulting\Reports\Contracts\Reportable;
  * @property bool $visible
  * @property CommentStatus $status
  * @property int|null $parent_id
- * @property int|null $actor_id
+ * @property int|string|null $actor_id
  * @property string|null $actor_type
- * @property int $commentable_id
+ * @property int|string $commentable_id
  * @property string $commentable_type
  * @property string $comment
  * @property CarbonInterface|null $locked_at
