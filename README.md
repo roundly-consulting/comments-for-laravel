@@ -395,6 +395,20 @@ $comment->update(['comment' => "see this [media:{$media->uuid}] 👀"]);
 echo $comment->renderBody(); // HtmlString: responsive <img> for images, <a> for other files
 ```
 
+> [!WARNING]
+> **Security: `renderBody()` does not escape the comment text (XSS risk).** Only the generated
+> `<img>` / `<a>` tags are escaped; everything around the tokens is returned exactly as stored.
+> Because it returns an `HtmlString`, Blade prints it **raw even inside `{{ }}`** —
+> `{{ $comment->renderBody() }}` is as unsafe as `{!! $comment->renderBody() !!}`. Never output
+> it for user-supplied comments unless the text is known to be safe:
+>
+> - **Plain text:** echo the attribute — `{{ $comment->comment }}` — and let Blade escape it.
+> - **Text + inline media:** escape the text when you *write* it, e.g.
+>   `Comments::on($post)->body(e($request->input('body')))->post()` (tokens contain no
+>   HTML-special characters, so they survive `e()`; the stored body — and `CommentResource`'s
+>   `body` — then holds the escaped text), or run the output through an HTML sanitizer that
+>   only allows the generated `<img>` / `<a>` tags.
+
 ### @mentions
 
 Comment bodies are scanned for `@handle` tokens on write and edit. Handles are always stored;

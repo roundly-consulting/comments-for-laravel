@@ -24,3 +24,12 @@ All notable changes to `comments-for-laravel` will be documented in this file.
   (public URL for public media, signed URL for private media). The config and README also warn
   that the default media disk (`public`) is web-served, so private attachments belong on a
   non-public disk.
+
+### Security
+
+- Documented that `renderBody()` returns the comment text **unescaped** (only the generated
+  `<img>` / `<a>` tags are escaped) and, being an `HtmlString`, prints raw even inside Blade's
+  `{{ }}` — an XSS risk for user-supplied comments. The method's docblock and the README now
+  carry the warning and the safe alternatives (`{{ $comment->comment }}` for plain text; escape
+  at write time or sanitize the output for inline media). The behaviour itself is unchanged and
+  pinned by tests.

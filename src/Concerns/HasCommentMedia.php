@@ -113,6 +113,17 @@ trait HasCommentMedia
      * on a missing/unauthorized UUID (it is stripped or kept per
      * `comments.media.inline.on_missing`). When inline rendering is disabled the raw
      * body is returned unchanged.
+     *
+     * SECURITY WARNING — the output is NOT escaped (XSS risk). The comment text around the
+     * tokens is returned exactly as stored; only the generated `<img>` / `<a>` markup is
+     * escaped. The result is an `HtmlString`, so Blade prints it raw even inside `{{ }}` —
+     * `{{ $comment->renderBody() }}` is exactly as unsafe as `{!! $comment->renderBody() !!}`.
+     * Never output it for user-supplied comments unless the text is known to be safe:
+     *
+     *  - plain text: echo the attribute instead — `{{ $comment->comment }}` (Blade escapes it);
+     *  - text + inline media: escape the text when you WRITE it
+     *    (`Comments::on($post)->body(e($input))->post()` — tokens survive `e()`), or pass the
+     *    output through an HTML sanitizer that only allows the generated `<img>` / `<a>` tags.
      */
     public function renderBody(): HtmlString
     {
