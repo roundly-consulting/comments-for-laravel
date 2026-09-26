@@ -84,6 +84,7 @@ use RoundlyConsulting\Comments\Models\Comment;
 
 return [
     'model' => Comment::class,
+    'key_type' => env('COMMENTS_KEY_TYPE', 'bigint'),
     'require_approval' => env('COMMENTS_REQUIRE_APPROVAL', false),
     'max_length' => env('COMMENTS_MAX_LENGTH', 5000),
     'max_depth' => env('COMMENTS_MAX_DEPTH', 5),
@@ -120,6 +121,7 @@ return [
 | Key                | Type                | Default          | Env                          | Description |
 |--------------------|---------------------|------------------|------------------------------|-------------|
 | `model`            | `class-string`      | `Comment::class` | —                            | The Eloquent model used to store comments. Point this at your own model (extending `RoundlyConsulting\Comments\Models\Comment`) if you need extra columns, casts, or behaviour. |
+| `key_type`         | `string`            | `bigint`         | `COMMENTS_KEY_TYPE`          | Key type of every polymorphic id column (commentable, actor, mentionable, lockable) — `bigint`, `uuid` or `ulid`. Set it to match your models' primary keys before migrating; keys are stored and read back as-is. |
 | `require_approval` | `bool`              | `false`          | `COMMENTS_REQUIRE_APPROVAL`  | When `true`, new comments start as `pending` and must be approved before they count as visible. When `false`, comments are approved immediately. |
 | `max_length`       | `int`               | `5000`           | `COMMENTS_MAX_LENGTH`        | Maximum characters allowed in a comment body. A longer body throws `InvalidCommentBodyException`. |
 | `max_depth`        | `int`               | `5`              | `COMMENTS_MAX_DEPTH`         | Maximum nesting depth for replies (a top-level comment is depth 1). Replying deeper throws `MaxReplyDepthExceededException`, and threaded eager-loading is bounded to this depth. |
