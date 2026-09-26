@@ -33,6 +33,10 @@ All notable changes to `comments-for-laravel` will be documented in this file.
   abilities; the shipped `CommentPolicy` allows them). They were the only mutations that ignored
   the setting, so any caller could restore a deleted comment or lock and unlock threads. `lock` /
   `unlock` receive what is being locked — the subject, or the comment for a reply-chain lock.
+- Editing a comment no longer re-notifies the people it already mentioned. Every edit deleted and
+  re-created all mention rows and fired `CommentMentioned` for each resolved one; mentions are now
+  synced (kept / removed / added) and the event fires only for a person newly mentioned — not for
+  one re-mentioned under another handle.
 
 ### Security
 

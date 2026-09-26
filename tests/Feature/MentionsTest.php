@@ -67,3 +67,42 @@ it('re-syncs mentions when the comment is edited', function (): void {
 
     expect($comment->mentions()->pluck('handle')->all())->toBe(['bob']);
 });
+
+it('notifies only newly mentioned people when a comment is edited', function (): void {
+    // Regression: an edit deleted and re-created every mention row and dispatched
+    // CommentMentioned for each one, so everyone already mentioned was notified again.
+    $alice = ActorTestModel::create();
+    $bob = ActorTestModel::create();
+    config()->set('comments.mention_resolver', fn (string $handle): ?ActorTestModel => match (strtolower($handle)) {
+        'alice' => $alice,
+        'bob' => $bob,
+        default => null,
+    });
+
+    $comment = Comments::on(PostTestModel::create())->body('hi @alice')->post();
+    $aliceRow = $comment->mentions()->sole();
+
+    Event::fake([CommentMentioned::class]);
+
+    Comments::update($comment, 'hi @alice and @bob');
+
+    Event::assertDispatchedTimes(CommentMentioned::class, 1);
+    Event::assertDispatched(CommentMentioned::class, fn (CommentMentioned $event): bool => $event->mention->mentionable?->is($bob) === true);
+    expect($comment->mentions()->whereKey($aliceRow->getKey())->exists())->toBeTrue();
+});
+
+it('does not re-notify on an edit that keeps the same mentions', function (): void {
+    $alice = ActorTestModel::create();
+    config()->set('comments.mention_resolver', fn (string $handle): ?ActorTestModel => strtolower($handle) === 'alice' ? $alice : null);
+
+    $comment = Comments::on(PostTestModel::create())->body('hi @alice')->post();
+
+    Event::fake([CommentMentioned::class]);
+
+    Comments::update($comment, 'hello again @alice');
+    // Same person under a different handle is not a new mention either.
+    Comments::update($comment, 'hello again @Alice');
+
+    Event::assertNotDispatched(CommentMentioned::class);
+    expect($comment->mentions()->pluck('handle')->all())->toBe(['Alice']);
+});

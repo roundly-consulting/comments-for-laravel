@@ -128,7 +128,7 @@ return [
 | `order`            | `string`            | `latest`         | `COMMENTS_ORDER`             | Default ordering for reading helpers — `latest` (newest first) or `oldest`. |
 | `blocklist`        | `list<string>`      | `[]`             | —                            | Banned words or regexes. Plain strings match case-insensitively as whole words; delimited entries (e.g. `/badword/i`) are treated as patterns. |
 | `blocklist_action` | `string`            | `reject`         | `COMMENTS_BLOCKLIST_ACTION`  | What to do on a match: `reject` (throw `CommentRejectedException`), `pending`, or `hidden`. |
-| `mention_resolver` | `callable\|null`    | `null`           | —                            | Resolves a parsed `@handle` to an Eloquent model (or `null`). Handles are always stored; resolved ones link to the model and fire `CommentMentioned`. |
+| `mention_resolver` | `callable\|null`    | `null`           | —                            | Resolves a parsed `@handle` to an Eloquent model (or `null`). Handles are always stored; resolved ones link to the model and fire `CommentMentioned` (on an edit, only for newly mentioned people). |
 | `authorization`    | `bool`              | `false`          | `COMMENTS_AUTHORIZATION`     | When `true`, every mutation (create, update, delete, restore, moderate, lock, unlock) consults the `Comment` policy. Off by default so existing behaviour is unchanged. |
 | `moderation.on_resolved` | `string\|null` | `hide`         | —                            | Auto-hide a comment when a report against it is upheld (`ReportResolved`). `hide` or `null` to disable. |
 | `moderation.auto_hide` | `bool`            | `true`          | —                            | Auto-hide a comment when it crosses the global `reports.threshold` (`ReportThresholdReached`). |
@@ -414,7 +414,10 @@ echo $comment->renderBody(); // HtmlString: responsive <img> for images, <a> for
 ### @mentions
 
 Comment bodies are scanned for `@handle` tokens on write and edit. Handles are always stored;
-set a resolver to link them to models and fire `CommentMentioned`.
+set a resolver to link them to models and fire `CommentMentioned`. An edit only fires it for
+people the comment did not already mention — handles still in the body keep their rows, removed
+ones are deleted, and re-mentioning the same person (even under another handle) is not a new
+mention.
 
 ```php
 // config/comments.php
