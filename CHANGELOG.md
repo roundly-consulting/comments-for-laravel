@@ -24,6 +24,10 @@ All notable changes to `comments-for-laravel` will be documented in this file.
   (public URL for public media, signed URL for private media). The config and README also warn
   that the default media disk (`public`) is web-served, so private attachments belong on a
   non-public disk.
+- `approveAll()` / `hideAll()` / `deleteAll()` on a `CommentQuery` now reach every match. They
+  walked the query in offset pages of 1000, and each page they moderated left the filtered set
+  (e.g. `pending()->approveAll()`), so the next offset skipped a page's worth of comments — with
+  1005 pending comments, 5 stayed pending. They now walk by primary key.
 
 ### Security
 

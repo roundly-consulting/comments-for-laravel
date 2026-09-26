@@ -236,11 +236,21 @@ final class CommentQuery
     private function each(callable $callback): int
     {
         $affected = 0;
+        $model = $this->query->getModel();
 
-        $this->query->clone()->each(function (Comment $comment) use ($callback, &$affected): void {
-            $callback($comment);
-            $affected++;
-        });
+        // Walk by primary key, not offset pages: the callback moves rows out of the filtered set
+        // (approving a `pending()` match, deleting one), so offset pages would skip a page's
+        // worth of matches after every chunk. The caller's ordering is irrelevant to a bulk
+        // action and would fight the key cursor, so it is dropped.
+        $this->query->clone()->reorder()->eachById(
+            function (Comment $comment) use ($callback, &$affected): void {
+                $callback($comment);
+                $affected++;
+            },
+            1000,
+            $model->getQualifiedKeyName(),
+            $model->getKeyName(),
+        );
 
         return $affected;
     }
