@@ -19,6 +19,7 @@ use RoundlyConsulting\Comments\Concerns\HasCommentReports;
 use RoundlyConsulting\Comments\Database\Factories\CommentFactory;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Events\CommentCreated;
+use RoundlyConsulting\Comments\Support\CommentAuthorizer;
 use RoundlyConsulting\Comments\Support\CommentModel;
 use RoundlyConsulting\Comments\Traits\HasComments;
 use RoundlyConsulting\Likes\Contracts\Likeable;
@@ -110,16 +111,24 @@ class Comment extends Model implements HasMedia, Likeable, Reportable
 
     /**
      * Lock this comment's reply chain so it cannot accept new or edited replies.
+     * Gated by the Comment policy's `lock` ability when `comments.authorization` is on.
      */
     public function lockReplies(): self
     {
+        app(CommentAuthorizer::class)->authorize('lock', [$this]);
+
         $this->update(['locked_at' => now()]);
 
         return $this;
     }
 
+    /**
+     * Gated by the Comment policy's `unlock` ability when `comments.authorization` is on.
+     */
     public function unlockReplies(): self
     {
+        app(CommentAuthorizer::class)->authorize('unlock', [$this]);
+
         $this->update(['locked_at' => null]);
 
         return $this;

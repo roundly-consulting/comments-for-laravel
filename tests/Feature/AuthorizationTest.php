@@ -164,5 +164,94 @@ it('the shipped policy is permissive by default', function (): void {
     expect($policy->create(null))->toBeTrue()
         ->and($policy->update(null, $comment))->toBeTrue()
         ->and($policy->delete(null, $comment))->toBeTrue()
-        ->and($policy->moderate(null, $comment))->toBeTrue();
+        ->and($policy->moderate(null, $comment))->toBeTrue()
+        ->and($policy->restore(null, $comment))->toBeTrue()
+        ->and($policy->lock(null, $comment))->toBeTrue()
+        ->and($policy->unlock(null, $comment))->toBeTrue();
+});
+
+/*
+ * restore / lock / unlock are gated too (they were the only mutations that ignored
+ * `comments.authorization`): `restore` gets the comment, `lock` / `unlock` get what is
+ * being locked — the subject, or the comment itself for a reply-chain lock.
+ */
+
+it('blocks restoring when the policy denies restore', function (): void {
+    $comment = Comments::on(PostTestModel::create())->body('first')->post();
+    Comments::delete($comment);
+
+    config()->set('comments.authorization', true);
+    $this->actingAs(UserTestModel::create());
+    Gate::policy(Comment::class, DenyingCommentPolicy::class);
+
+    expect(fn () => Comments::restore($comment))->toThrow(UnauthorizedCommentActionException::class)
+        ->and($comment->fresh()?->trashed())->toBeTrue();
+});
+
+it('blocks locking and unlocking a subject when the policy denies them', function (): void {
+    $locked = PostTestModel::create();
+    $open = PostTestModel::create();
+    Comments::lock($locked);
+
+    config()->set('comments.authorization', true);
+    $this->actingAs(UserTestModel::create());
+    Gate::policy(Comment::class, DenyingCommentPolicy::class);
+
+    expect(fn () => Comments::lock($open))->toThrow(UnauthorizedCommentActionException::class)
+        ->and(Comments::isLocked($open))->toBeFalse()
+        ->and(fn () => Comments::unlock($locked))->toThrow(UnauthorizedCommentActionException::class)
+        ->and(Comments::isLocked($locked))->toBeTrue();
+});
+
+it('blocks locking and unlocking a reply chain when the policy denies them', function (): void {
+    $locked = Comments::on(PostTestModel::create())->body('locked')->post()->lockReplies();
+    $open = Comments::on(PostTestModel::create())->body('open')->post();
+
+    config()->set('comments.authorization', true);
+    $this->actingAs(UserTestModel::create());
+    Gate::policy(Comment::class, DenyingCommentPolicy::class);
+
+    expect(fn () => $open->lockReplies())->toThrow(UnauthorizedCommentActionException::class)
+        ->and($open->fresh()?->isLocked())->toBeFalse()
+        ->and(fn () => $locked->unlockReplies())->toThrow(UnauthorizedCommentActionException::class)
+        ->and($locked->fresh()?->isLocked())->toBeTrue();
+});
+
+it('hands what is being locked to the lock and unlock policy', function (): void {
+    config()->set('comments.authorization', true);
+    $this->actingAs(UserTestModel::create());
+    Gate::policy(Comment::class, SubjectScopedCommentPolicy::class);
+
+    $mine = PostTestModel::create();
+    $theirs = PostTestModel::create();
+    SubjectScopedCommentPolicy::$openSubjectKey = $mine->getKey();
+
+    Comments::lock($mine);
+
+    expect(Comments::isLocked($mine))->toBeTrue()
+        ->and(fn () => Comments::lock($theirs))->toThrow(UnauthorizedCommentActionException::class);
+
+    Comments::unlock($mine);
+
+    expect(Comments::isLocked($mine))->toBeFalse();
+});
+
+it('lets the shipped policy restore, lock and unlock', function (): void {
+    $post = PostTestModel::create();
+    $comment = Comments::on($post)->body('first')->post();
+    Comments::delete($comment);
+
+    config()->set('comments.authorization', true);
+    $this->actingAs(UserTestModel::create());
+
+    Comments::restore($comment);
+    Comments::lock($post);
+    $locked = Comments::isLocked($post);
+    Comments::unlock($post);
+    $comment->lockReplies()->unlockReplies();
+
+    expect($comment->fresh()?->trashed())->toBeFalse()
+        ->and($locked)->toBeTrue()
+        ->and(Comments::isLocked($post))->toBeFalse()
+        ->and($comment->fresh()?->isLocked())->toBeFalse();
 });

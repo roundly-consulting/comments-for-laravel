@@ -15,7 +15,8 @@ use RoundlyConsulting\Comments\Models\Comment;
  *
  * The checks only run when `comments.authorization` is on. `create` receives the
  * subject being commented on (for a reply: the root subject the reply joins), so
- * a policy can decide per subject; `$user` is null for a guest.
+ * a policy can decide per subject; `lock` / `unlock` receive what is being locked
+ * — a subject, or a comment for a reply-chain lock. `$user` is null for a guest.
  */
 class CommentPolicy
 {
@@ -35,6 +36,21 @@ class CommentPolicy
     }
 
     public function moderate(?Model $user, Comment $comment): bool
+    {
+        return true;
+    }
+
+    public function restore(?Model $user, Comment $comment): bool
+    {
+        return true;
+    }
+
+    public function lock(?Model $user, Model $lockable): bool
+    {
+        return true;
+    }
+
+    public function unlock(?Model $user, Model $lockable): bool
     {
         return true;
     }

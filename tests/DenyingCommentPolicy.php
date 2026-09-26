@@ -28,4 +28,19 @@ final class DenyingCommentPolicy
     {
         return false;
     }
+
+    public function restore(?Model $user, Comment $comment): bool
+    {
+        return false;
+    }
+
+    public function lock(?Model $user, Model $lockable): bool
+    {
+        return false;
+    }
+
+    public function unlock(?Model $user, Model $lockable): bool
+    {
+        return false;
+    }
 }

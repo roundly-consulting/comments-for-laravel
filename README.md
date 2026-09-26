@@ -129,7 +129,7 @@ return [
 | `blocklist`        | `list<string>`      | `[]`             | —                            | Banned words or regexes. Plain strings match case-insensitively as whole words; delimited entries (e.g. `/badword/i`) are treated as patterns. |
 | `blocklist_action` | `string`            | `reject`         | `COMMENTS_BLOCKLIST_ACTION`  | What to do on a match: `reject` (throw `CommentRejectedException`), `pending`, or `hidden`. |
 | `mention_resolver` | `callable\|null`    | `null`           | —                            | Resolves a parsed `@handle` to an Eloquent model (or `null`). Handles are always stored; resolved ones link to the model and fire `CommentMentioned`. |
-| `authorization`    | `bool`              | `false`          | `COMMENTS_AUTHORIZATION`     | When `true`, write/update/moderation actions consult Laravel's `Gate`. Off by default so existing behaviour is unchanged. |
+| `authorization`    | `bool`              | `false`          | `COMMENTS_AUTHORIZATION`     | When `true`, every mutation (create, update, delete, restore, moderate, lock, unlock) consults the `Comment` policy. Off by default so existing behaviour is unchanged. |
 | `moderation.on_resolved` | `string\|null` | `hide`         | —                            | Auto-hide a comment when a report against it is upheld (`ReportResolved`). `hide` or `null` to disable. |
 | `moderation.auto_hide` | `bool`            | `true`          | —                            | Auto-hide a comment when it crosses the global `reports.threshold` (`ReportThresholdReached`). |
 | `media`            | `array`             | see above        | `COMMENTS_MEDIA_*`           | The comment's single `attachments` bucket (disk, visibility, accepted types, size, responsive widths, signed-URL lifetime) plus inline `[media:UUID]` body rendering (`enabled`, `default_variant`, `on_missing`). |
@@ -494,18 +494,30 @@ use RoundlyConsulting\Comments\Policies\CommentPolicy;
 Gate::policy(Comment::class, CommentPolicy::class);
 ```
 
-When enabled, the actions check the `create`, `update`, `delete`, and `moderate` abilities of
-the `Comment` policy (a policy registered for `Comment` also covers a subclass configured in
-`comments.model`) and throw `UnauthorizedCommentActionException` on denial. With nothing
-registered, Laravel's policy auto-discovery resolves the shipped, permissive `CommentPolicy`.
+When enabled, every mutation checks the matching ability of the `Comment` policy and throws
+`UnauthorizedCommentActionException` on denial: `create`, `update`, `delete`, `restore`,
+`moderate` (approve / hide), and `lock` / `unlock` (subject locks as well as `lockReplies()` /
+`unlockReplies()`). A policy registered for `Comment` also covers a subclass configured in
+`comments.model`; with nothing registered, Laravel's policy auto-discovery resolves the shipped,
+permissive `CommentPolicy`.
 
 `create` also receives the subject being commented on — for a reply, the root subject the reply
-joins — so you can decide per subject. `$user` is `null` for a guest:
+joins — so you can decide per subject; `lock` / `unlock` receive what is being locked (the
+subject, or the comment for a reply-chain lock). `$user` is `null` for a guest. A custom policy
+that lacks one of these methods denies that action, so extend the shipped `CommentPolicy`:
 
 ```php
-public function create(?Model $user, ?Model $commentable = null): bool
+class ProjectCommentPolicy extends CommentPolicy
 {
-    return $user !== null && $commentable instanceof Project && $commentable->hasMember($user);
+    public function create(?Model $user, ?Model $commentable = null): bool
+    {
+        return $user !== null && $commentable instanceof Project && $commentable->hasMember($user);
+    }
+
+    public function lock(?Model $user, Model $lockable): bool
+    {
+        return $user?->isModerator() ?? false;
+    }
 }
 ```
 

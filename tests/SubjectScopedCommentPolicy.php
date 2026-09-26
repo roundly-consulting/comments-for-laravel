@@ -19,4 +19,14 @@ final class SubjectScopedCommentPolicy
     {
         return $commentable !== null && $commentable->getKey() === self::$openSubjectKey;
     }
+
+    public function lock(?Model $user, Model $lockable): bool
+    {
+        return $lockable->getKey() === self::$openSubjectKey;
+    }
+
+    public function unlock(?Model $user, Model $lockable): bool
+    {
+        return $lockable->getKey() === self::$openSubjectKey;
+    }
 }

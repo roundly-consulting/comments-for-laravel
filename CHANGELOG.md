@@ -28,6 +28,11 @@ All notable changes to `comments-for-laravel` will be documented in this file.
   walked the query in offset pages of 1000, and each page they moderated left the filtered set
   (e.g. `pending()->approveAll()`), so the next offset skipped a page's worth of comments — with
   1005 pending comments, 5 stayed pending. They now walk by primary key.
+- With `comments.authorization` on, `restore`, subject `lock` / `unlock` and a comment's
+  `lockReplies()` / `unlockReplies()` are now gated too (new `restore`, `lock`, `unlock` policy
+  abilities; the shipped `CommentPolicy` allows them). They were the only mutations that ignored
+  the setting, so any caller could restore a deleted comment or lock and unlock threads. `lock` /
+  `unlock` receive what is being locked — the subject, or the comment for a reply-chain lock.
 
 ### Security
 
