@@ -190,10 +190,13 @@ return [
         // Bucket name the comment registers on the media-library model.
         'attachments_bucket' => 'attachments',
 
-        // Attachment visibility: 'private' (signed streaming) or 'public'.
+        // Attachment visibility: 'private' (only ever linked via short-lived signed URLs)
+        // or 'public'.
         'visibility' => env('COMMENTS_MEDIA_VISIBILITY', 'private'),
 
-        // Disk for the comment's media. null => the media-library default disk.
+        // Disk for the comment's media. null => the media-library default disk, which is
+        // 'public' out of the box — web-served under /storage once `storage:link` runs. Keep
+        // private attachments on a disk that is not web-served ('local', a private S3 disk).
         'disk' => env('COMMENTS_MEDIA_DISK'),
 
         // Whitelist of accepted mime types. [] => accept any type.

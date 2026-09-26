@@ -16,3 +16,11 @@ All notable changes to `comments-for-laravel` will be documented in this file.
   digit prefix (`'0199…'` → `199`): its comments never showed up on it, a Postgres uuid column
   rejected the write outright, and a locked subject was looked up by the wrong id and never read
   as locked.
+- Private attachments (the default `comments.media.visibility`) are now served through
+  short-lived signed URLs everywhere. `attachmentUrls()`, inline `[media:UUID]` tokens in
+  `renderBody()` and `CommentResource`'s `attachments[].url` asked media-library for the
+  attachment's public URL, which it refuses for private media — so on the default config each of
+  them threw `MediaCannotBeStreamed`. They now go through the new `resolveAttachmentUrl()`
+  (public URL for public media, signed URL for private media). The config and README also warn
+  that the default media disk (`public`) is web-served, so private attachments belong on a
+  non-public disk.

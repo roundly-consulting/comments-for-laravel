@@ -62,12 +62,17 @@ trait HasCommentMedia
         return $this->getMedia($this->attachmentsBucket());
     }
 
-    /** @return list<string> */
+    /**
+     * The URL of every attachment, each resolved by its own visibility — see
+     * {@see self::resolveAttachmentUrl()}: private attachments get short-lived signed URLs.
+     *
+     * @return list<string>
+     */
     public function attachmentUrls(string $variant = ''): array
     {
         return array_values(
             $this->attachments()
-                ->map(fn (Media $media): string => $media->getUrl($variant))
+                ->map(fn (Media $media): string => $this->resolveAttachmentUrl($media, $variant))
                 ->all(),
         );
     }
@@ -85,6 +90,19 @@ trait HasCommentMedia
     public function attachmentUrl(Media $media, string $variant = ''): string
     {
         return $media->getTemporaryUrl($this->temporaryUrlExpiry(), $variant);
+    }
+
+    /**
+     * The URL to serve an attachment at, chosen by the attachment's own visibility: a public
+     * attachment gets its public (CDN-rewritable) URL, a private one a short-lived signed URL
+     * ({@see self::attachmentUrl()}). A private attachment never gets a public URL — this is
+     * the resolver `attachmentUrls()`, `renderBody()` and `CommentResource` all go through.
+     */
+    public function resolveAttachmentUrl(Media $media, string $variant = ''): string
+    {
+        return $media->isPrivate()
+            ? $this->attachmentUrl($media, $variant)
+            : $media->getUrl($variant);
     }
 
     /**
@@ -121,6 +139,7 @@ trait HasCommentMedia
         $rendered = $renderer->render(
             $body,
             $media,
+            fn (Media $media, string $variant): string => $this->resolveAttachmentUrl($media, $variant),
             (string) config('comments.media.inline.default_variant', ''),
             $this->onMissingStrategy(),
         );

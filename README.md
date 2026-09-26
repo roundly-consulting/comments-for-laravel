@@ -369,10 +369,21 @@ passthrough originals and served through signed streaming.
 ```php
 $comment->addMedia($request->file('file'))->toBucket($comment->attachmentsBucket());
 
-$comment->attachments();            // Collection<Media>
-$comment->attachmentUrls('thumb');  // list<string>
-$comment->attachmentUrl($media);    // signed, short-lived URL (private threads)
+$comment->attachments();                // Collection<Media>
+$comment->attachmentUrls('thumb');      // list<string>, each resolved by its visibility
+$comment->resolveAttachmentUrl($media); // public URL if public, signed short-lived URL if private
+$comment->attachmentUrl($media);        // always a signed, short-lived URL
 ```
+
+Attachments are **private by default** (`comments.media.visibility`). A private attachment is
+only ever linked through a short-lived signed URL — `attachmentUrls()`, inline media in
+`renderBody()` and `CommentResource` all resolve it that way, never to a public URL.
+
+> [!IMPORTANT]
+> Signed URLs protect the link, not the bytes. With `comments.media.disk` unset, attachments are
+> stored on media-library's default disk — `public` unless you changed `media.disk` — which
+> `php artisan storage:link` exposes under `/storage`. Store private attachments on a disk that
+> is not web-served, e.g. `COMMENTS_MEDIA_DISK=local` or a private S3 disk.
 
 Embed inline images GitHub/Reddit-style with `[media:UUID]` / `[media:UUID|variant]` tokens in
 the body — resolved only against the comment's own bucket, in a single batched query, never

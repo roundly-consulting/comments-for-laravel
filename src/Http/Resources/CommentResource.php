@@ -42,7 +42,8 @@ final class CommentResource extends JsonResource
                 fn (): array => $this->attachments()
                     ->map(fn (Media $media): array => [
                         'id' => $media->uuid,
-                        'url' => $media->getUrl(),
+                        // Signed for a private attachment, never its public URL.
+                        'url' => $this->resolveAttachmentUrl($media),
                     ])
                     ->values()
                     ->all(),

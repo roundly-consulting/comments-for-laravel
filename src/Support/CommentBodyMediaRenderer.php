@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Comments\Support;
 
+use Closure;
 use Illuminate\Support\Collection;
 use RoundlyConsulting\MediaLibrary\Models\Media;
+use RoundlyConsulting\MediaLibrary\Variants\ResponsiveImageGenerator;
 
 /**
  * Replaces inline `[media:UUID]` / `[media:UUID|variant]` tokens in a comment
@@ -16,6 +18,12 @@ use RoundlyConsulting\MediaLibrary\Models\Media;
  * candidate media (the comment's own attachments bucket), so resolution stays a
  * single batched query and inline media can only ever point at media the comment
  * owns — never an arbitrary global UUID.
+ *
+ * Every URL comes from the caller's resolver, so a private attachment is linked through a
+ * short-lived signed URL and never through a public one.
+ *
+ * Only the generated tags are escaped: the text around the tokens is returned exactly as
+ * stored (see the XSS warning on `HasCommentMedia::renderBody()`).
  */
 final class CommentBodyMediaRenderer
 {
@@ -41,10 +49,12 @@ final class CommentBodyMediaRenderer
      * Render every inline token in $body using the supplied candidate media.
      *
      * @param  Collection<int, Media>  $media  the comment's own attachment media
+     * @param  Closure(Media, string): string  $url  resolves a media + variant to the URL to serve
      */
     public function render(
         string $body,
         Collection $media,
+        Closure $url,
         string $defaultVariant = '',
         string $onMissing = 'strip',
     ): string {
@@ -52,7 +62,7 @@ final class CommentBodyMediaRenderer
 
         return (string) preg_replace_callback(
             self::TOKEN_PATTERN,
-            function (array $match) use ($byUuid, $defaultVariant, $onMissing): string {
+            function (array $match) use ($byUuid, $url, $defaultVariant, $onMissing): string {
                 $uuid = $match['uuid'];
                 $variant = ($match['variant'] ?? '') !== '' ? $match['variant'] : $defaultVariant;
 
@@ -62,22 +72,68 @@ final class CommentBodyMediaRenderer
                     return $onMissing === 'keep' ? $match[0] : '';
                 }
 
-                return $this->renderMedia($media, $variant);
+                return $this->renderMedia($media, $variant, $url);
             },
             $body,
         );
     }
 
-    private function renderMedia(Media $media, string $variant): string
+    /**
+     * @param  Closure(Media, string): string  $url
+     */
+    private function renderMedia(Media $media, string $variant, Closure $url): string
     {
         if ($media->isImage()) {
             if ($variant !== '') {
-                return '<img src="'.e($media->getUrl($variant)).'" alt="'.e($media->name).'">';
+                return '<img src="'.e($url($media, $variant)).'" alt="'.e($media->name).'">';
             }
 
-            return $media->responsiveImage('', ['alt' => $media->name]);
+            // Public media keep media-library's own tag (CDN rewriting included); its URLs
+            // are public ones, which private media does not have.
+            return $media->isPrivate()
+                ? $this->privateResponsiveImage($media, $url)
+                : $media->responsiveImage('', ['alt' => $media->name]);
         }
 
-        return '<a href="'.e($media->getUrl()).'">'.e($media->name).'</a>';
+        return '<a href="'.e($url($media, '')).'">'.e($media->name).'</a>';
+    }
+
+    /**
+     * The same `<img>` media-library's `responsiveImage()` builds — smallest generated width
+     * as `src`, every width in `srcset`, the LQIP placeholder — with each URL resolved by the
+     * caller (signed, for private media).
+     *
+     * @param  Closure(Media, string): string  $url
+     */
+    private function privateResponsiveImage(Media $media, Closure $url): string
+    {
+        $widths = app(ResponsiveImageGenerator::class)->generatedWidths($media);
+
+        $attributes = [
+            'src' => $url($media, $widths === [] ? '' : ResponsiveImageGenerator::variantName($widths[0])),
+        ];
+
+        if ($widths !== []) {
+            $attributes['srcset'] = implode(', ', array_map(
+                fn (int $width): string => $url($media, ResponsiveImageGenerator::variantName($width)).' '.$width.'w',
+                $widths,
+            ));
+        }
+
+        $attributes['alt'] = $media->name;
+
+        $placeholder = $media->placeholderDataUri();
+
+        if ($placeholder !== null) {
+            $attributes['style'] = "background-size:cover;background-image:url('{$placeholder}')";
+        }
+
+        $rendered = '';
+
+        foreach ($attributes as $name => $value) {
+            $rendered .= ' '.$name.'="'.e($value).'"';
+        }
+
+        return '<img'.$rendered.'>';
     }
 }
