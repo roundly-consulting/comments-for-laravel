@@ -1,52 +1,29 @@
 # Changelog
 
-All notable changes to `comments-for-laravel` will be documented in this file.
+All notable changes to `comments-for-laravel` are documented in this file. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
+[Semantic Versioning](https://semver.org/).
 
 ## Unreleased
 
-### Fixed
+Initial public release.
 
-- With `comments.authorization` on, writing a comment now consults the `Comment` policy's
-  `create` ability. The write flow asked the Gate for a bare `create` ability with no model, so
-  the policy was never reached: every write was denied (even under the shipped permissive
-  policy) unless the host happened to define a global `create` gate, which then decided instead.
-  `create` now also receives the subject being commented on (the root subject for a reply).
-- With `comments.key_type` set to `uuid` or `ulid`, writing a comment now stores the subject's
-  real key. The write flow cast it to an integer, so a uuid/ulid subject was stored as `0` or a
-  digit prefix (`'0199…'` → `199`): its comments never showed up on it, a Postgres uuid column
-  rejected the write outright, and a locked subject was looked up by the wrong id and never read
-  as locked.
-- Private attachments (the default `comments.media.visibility`) are now served through
-  short-lived signed URLs everywhere. `attachmentUrls()`, inline `[media:UUID]` tokens in
-  `renderBody()` and `CommentResource`'s `attachments[].url` asked media-library for the
-  attachment's public URL, which it refuses for private media — so on the default config each of
-  them threw `MediaCannotBeStreamed`. They now go through the new `resolveAttachmentUrl()`
-  (public URL for public media, signed URL for private media).
-- `approveAll()` / `hideAll()` / `deleteAll()` on a `CommentQuery` now reach every match. They
-  walked the query in offset pages of 1000, and each page they moderated left the filtered set
-  (e.g. `pending()->approveAll()`), so the next offset skipped a page's worth of comments — with
-  1005 pending comments, 5 stayed pending. They now walk by primary key.
-- With `comments.authorization` on, `restore`, subject `lock` / `unlock` and a comment's
-  `lockReplies()` / `unlockReplies()` are now gated too (new `restore`, `lock`, `unlock` policy
-  abilities; the shipped `CommentPolicy` allows them). They were the only mutations that ignored
-  the setting, so any caller could restore a deleted comment or lock and unlock threads. `lock` /
-  `unlock` receive what is being locked — the subject, or the comment for a reply-chain lock.
-- Editing a comment no longer re-notifies the people it already mentioned. Every edit deleted and
-  re-created all mention rows and fired `CommentMentioned` for each resolved one; mentions are now
-  synced (kept / removed / added) and the event fires only for a person newly mentioned — not for
-  one re-mentioned under another handle.
+### Added
 
-### Security
-
-- Documented that `renderBody()` returns the comment text **unescaped** (only the generated
-  `<img>` / `<a>` tags are escaped) and, being an `HtmlString`, prints raw even inside Blade's
-  `{{ }}` — an XSS risk for user-supplied comments. The method's docblock and the README now
-  carry the warning and the safe alternatives (`{{ $comment->comment }}` for plain text; escape
-  at write time or sanitize the output for inline media). The behaviour itself is unchanged and
-  pinned by tests.
-- Private attachments are now stored on a non-public disk by default: new
-  `comments.media.private_disk` (`COMMENTS_MEDIA_PRIVATE_DISK`, default `local`) holds private
-  originals and their variants whenever `comments.media.disk` is unset. They used to land on
-  media-library's default `public` disk — served under `/storage` once `storage:link` runs — so a
-  private file was reachable without its signed URL. The signed stream route serves them from the
-  private disk.
+- Polymorphic comments on any model: `HasComments` for commentable models, `GivesComments` for
+  authors, plus anonymous guest comments.
+- Fluent `Comments::on($post)->as($user)->body(...)->post()` builder, `WriteCommentAction` with a
+  typed DTO, and edit, soft-delete and restore.
+- Threaded replies (`reply()`, `threadedComments()`).
+- Moderation workflow — pending, approved, hidden — with scopes and bulk moderation
+  (`Comments::for($post)->pending()->approveAll()`).
+- An event for every step of the comment lifecycle.
+- Likes, typed reactions and ranking (`orderByLikesDesc()`, `orderByTrending()`), built on
+  likes-for-laravel.
+- Report-a-comment with auto-hide and approval-based moderation, built on reports-for-laravel.
+- Media attachments with inline `[media:UUID]` rendering, built on media-library-for-laravel.
+- `@mention` parsing with a `CommentMentioned` event, and a configurable blocklist filter.
+- Thread and reply locking (`Comments::lock()`, `lockReplies()`).
+- N+1-free comment counts (`withCommentCounts()`), an opt-in `CommentPolicy` and a
+  `CommentResource` API resource.
+- Factory states and `AssertsComments` test assertions.
