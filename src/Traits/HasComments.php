@@ -51,18 +51,6 @@ trait HasComments
     }
 
     /**
-     * Backward-compatible morph-based reply tree.
-     *
-     * @deprecated Prefer `threadedComments()` / the `replies` relation.
-     *
-     * @return MorphMany<Comment, $this>
-     */
-    public function commentsWithReplies(): MorphMany
-    {
-        return $this->comments()->with('commentsWithReplies');
-    }
-
-    /**
      * Eager-load an approved comment count onto this instance, exposed as the
      * `comments_count` attribute.
      */

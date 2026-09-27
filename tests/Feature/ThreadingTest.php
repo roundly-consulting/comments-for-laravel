@@ -94,17 +94,3 @@ it('bounds the threaded eager-load to max depth', function (): void {
 
     expect($loadedDepth)->toBe(5);
 });
-
-it('keeps the legacy commentsWithReplies tree working', function (): void {
-    $actor = ActorTestModel::create();
-    $post = PostTestModel::create();
-
-    $comment = $actor->writeComment(commentable: $post, comment: 'Root');
-    $comment = $actor->writeComment(commentable: $comment, comment: 'Reply');
-    $actor->writeComment(commentable: $comment, comment: 'Nested');
-
-    $comments = $post->commentsWithReplies;
-
-    expect($comments)->toHaveCount(1)
-        ->and($comments->first()->commentsWithReplies->first()->comment)->toBe('Reply');
-});

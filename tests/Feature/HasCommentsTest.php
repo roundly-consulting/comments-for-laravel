@@ -52,7 +52,7 @@ it('list comments to entity with replies', function () {
         comment: 'Sure it is.',
     );
 
-    $comments = $post->commentsWithReplies;
+    $comments = $post->comments;
 
     $model = config('comments.model', Comment::class);
 
@@ -63,17 +63,17 @@ it('list comments to entity with replies', function () {
         ->toBeInstanceOf($model)
         ->comment
         ->toBe('It can list comments from entity with replies')
-        ->and($comments->first()->commentsWithReplies)
+        ->and($comments->first()->comments)
         ->toBeCollection()
         ->toHaveCount(1)
-        ->and($comments->first()->commentsWithReplies->first())
+        ->and($comments->first()->comments->first())
         ->toBeInstanceOf($model)
         ->comment
         ->toBe('WOW! Thats great.')
-        ->and($comments->first()->commentsWithReplies->first()->commentsWithReplies)
+        ->and($comments->first()->comments->first()->comments)
         ->toBeCollection()
         ->toHaveCount(1)
-        ->and($comments->first()->commentsWithReplies->first()->commentsWithReplies->first())
+        ->and($comments->first()->comments->first()->comments->first())
         ->toBeInstanceOf($model)
         ->comment
         ->toBe('Sure it is.');

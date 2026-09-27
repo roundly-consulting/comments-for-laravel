@@ -273,10 +273,6 @@ $post->threadedComments()->get();
 $post->comments()->whereNull('parent_id')->get();
 ```
 
-> The legacy `commentsWithReplies` relation (replies modelled by commenting on a comment) is
-> still available for backward compatibility, but `threadedComments()` / the `replies`
-> relation are preferred.
-
 ### Reading comments
 
 ```php
