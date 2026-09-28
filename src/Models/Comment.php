@@ -13,13 +13,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use RoundlyConsulting\Comments\CommentsManager;
 use RoundlyConsulting\Comments\Concerns\HasCommentMedia;
 use RoundlyConsulting\Comments\Concerns\HasCommentReactions;
 use RoundlyConsulting\Comments\Concerns\HasCommentReports;
 use RoundlyConsulting\Comments\Database\Factories\CommentFactory;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Events\CommentCreated;
-use RoundlyConsulting\Comments\Support\CommentAuthorizer;
 use RoundlyConsulting\Comments\Support\CommentModel;
 use RoundlyConsulting\Comments\Traits\HasComments;
 use RoundlyConsulting\Likes\Contracts\Likeable;
@@ -110,30 +110,32 @@ class Comment extends Model implements HasMedia, Likeable, Reportable
     }
 
     /**
-     * Lock this comment's reply chain so it cannot accept new or edited replies.
-     * Gated by the Comment policy's `lock` ability when `comments.authorization` is on.
+     * Lock the thread under this comment: no new replies anywhere below it, and no edits to it
+     * or any comment in it. Same as `Comments::lockThread($comment)` — gated by the Comment
+     * policy's `lock` ability when `comments.authorization` is on, fires `CommentThreadLocked`.
      */
     public function lockReplies(): self
     {
-        app(CommentAuthorizer::class)->authorize('lock', [$this]);
-
-        $this->update(['locked_at' => now()]);
+        app(CommentsManager::class)->lockThread($this);
 
         return $this;
     }
 
     /**
-     * Gated by the Comment policy's `unlock` ability when `comments.authorization` is on.
+     * Same as `Comments::unlockThread($comment)` — gated by the Comment policy's `unlock`
+     * ability when `comments.authorization` is on, fires `CommentThreadUnlocked`.
      */
     public function unlockReplies(): self
     {
-        app(CommentAuthorizer::class)->authorize('unlock', [$this]);
-
-        $this->update(['locked_at' => null]);
+        app(CommentsManager::class)->unlockThread($this);
 
         return $this;
     }
 
+    /**
+     * Whether this comment carries a thread lock itself. `Comments::isThreadLocked($comment)`
+     * also answers for a lock on an ancestor.
+     */
     public function isLocked(): bool
     {
         return $this->locked_at !== null;

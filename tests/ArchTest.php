@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use RoundlyConsulting\Comments\CommentsManager;
 use RoundlyConsulting\Comments\Exceptions\CommentsException;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Models\CommentLock;
@@ -26,7 +27,9 @@ ArchPresets::strictTypes('RoundlyConsulting\Comments');
  *  - CommentsException, the exception base every typed comments failure extends and hosts
  *    catch;
  *  - CommentPolicy, which hosts extend to override single abilities (the shipped
- *    DenyingCommentPolicy fixture does exactly this).
+ *    DenyingCommentPolicy fixture does exactly this);
+ *  - CommentsManager, the facade root `CommentsFake` extends — the fake must be a subtype of
+ *    the root or constructor-injected managers `TypeError` under `Comments::fake()`.
  */
 ArchPresets::finalByDefault('RoundlyConsulting\Comments', [
     Comment::class,
@@ -34,6 +37,7 @@ ArchPresets::finalByDefault('RoundlyConsulting\Comments', [
     CommentLock::class,
     CommentsException::class,
     CommentPolicy::class,
+    CommentsManager::class,
 ]);
 
 /**
@@ -84,5 +88,12 @@ ArchPresets::morphColumnsUseTheSeam(__DIR__.'/../database/migrations');
  * — never widen the allow-list to quiet it.
  */
 ArchPresets::runtimeRequireIsWhitelisted(__DIR__.'/../composer.json');
+
+/**
+ * One path: the `Comment` model's thread-lock methods, `GivesComments::writeComment()` and
+ * `HasComments::commentsLocked()` go through `CommentsManager`, never an action — so
+ * `Comments::fake()` sees every call and a host binding over an action applies everywhere.
+ */
+ArchPresets::modelsGoThroughTheFacade('RoundlyConsulting\Comments');
 
 ArchPresets::noDebuggingLeftovers();

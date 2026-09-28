@@ -10,7 +10,13 @@ use RoundlyConsulting\Comments\Events\CommentMentioned;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Models\CommentMention;
 
-final class SyncCommentMentionsAction
+/**
+ * Keeps a comment's stored `@handle` mentions in step with its body. A building block of the
+ * write and edit actions — not a host-facing operation of its own.
+ *
+ * @internal
+ */
+final readonly class SyncCommentMentionsAction
 {
     /**
      * Parse "@handle" tokens from the comment body and sync them against the stored

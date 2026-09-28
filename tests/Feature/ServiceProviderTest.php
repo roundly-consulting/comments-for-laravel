@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\ServiceProvider;
-use RoundlyConsulting\Comments\CommentManager;
+use RoundlyConsulting\Comments\CommentsManager;
 use RoundlyConsulting\Comments\CommentsServiceProvider;
 
 it('registers all publish tags', function (string $tag): void {
@@ -41,7 +41,7 @@ it('loads the package translations', function (): void {
 });
 
 it('binds the comment manager as a singleton', function (): void {
-    expect(app(CommentManager::class))->toBe(app(CommentManager::class));
+    expect(app(CommentsManager::class))->toBe(app(CommentsManager::class));
 });
 
 it('contributes a comments section to about', function (string $expected): void {

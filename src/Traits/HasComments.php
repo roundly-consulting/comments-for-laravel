@@ -6,9 +6,9 @@ namespace RoundlyConsulting\Comments\Traits;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use RoundlyConsulting\Comments\CommentsManager;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Models\Comment;
-use RoundlyConsulting\Comments\Models\CommentLock;
 use RoundlyConsulting\Comments\Support\CommentModel;
 
 trait HasComments
@@ -80,14 +80,12 @@ trait HasComments
     }
 
     /**
-     * Whether new/edited comments on this subject are blocked by a lock.
+     * Whether new/edited comments on this subject are blocked by a lock — same as
+     * `Comments::isLocked($subject)`.
      */
     public function commentsLocked(): bool
     {
-        return CommentLock::query()
-            ->where('lockable_type', $this->getMorphClass())
-            ->where('lockable_id', $this->getKey())
-            ->exists();
+        return app(CommentsManager::class)->isLocked($this);
     }
 
     private function buildRepliesEagerLoad(int $maxDepth): string

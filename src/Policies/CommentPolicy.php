@@ -16,7 +16,7 @@ use RoundlyConsulting\Comments\Models\Comment;
  * The checks only run when `comments.authorization` is on. `create` receives the
  * subject being commented on (for a reply: the root subject the reply joins), so
  * a policy can decide per subject; `lock` / `unlock` receive what is being locked
- * — a subject, or a comment for a reply-chain lock. `$user` is null for a guest.
+ * — a subject, or a comment for a thread lock (`Comments::lockThread()`). `$user` is null for a guest.
  */
 class CommentPolicy
 {

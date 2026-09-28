@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Support\Facades\Event;
 use RoundlyConsulting\Comments\CommentBuilder;
-use RoundlyConsulting\Comments\CommentManager;
+use RoundlyConsulting\Comments\CommentsManager;
 use RoundlyConsulting\Comments\DataTransferObjects\WriteCommentData;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Events\CommentApproved;
@@ -16,8 +16,26 @@ use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Tests\ActorTestModel;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
 
+it('pins the facade contract', function (): void {
+    expect(Comments::class)
+        ->toDocumentItsRoot()
+        ->toReachEveryAction(__DIR__.'/../../src/Actions');
+});
+
 it('resolves the manager as a singleton', function (): void {
-    expect(app(CommentManager::class))->toBe(app(CommentManager::class));
+    expect(app(CommentsManager::class))->toBe(app(CommentsManager::class));
+});
+
+it('runs the same API through an injected manager', function (): void {
+    $manager = app(CommentsManager::class);
+    $post = PostTestModel::create();
+
+    $comment = $manager->on($post)->body('Injected')->post();
+    $manager->lockThread($comment);
+
+    expect($manager->for($post)->count())->toBe(1)
+        ->and($manager->isThreadLocked($comment))->toBeTrue()
+        ->and(Comments::getFacadeRoot())->toBe($manager);
 });
 
 it('starts a fluent builder from the facade', function (): void {

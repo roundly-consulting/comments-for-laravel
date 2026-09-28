@@ -9,10 +9,10 @@ use RoundlyConsulting\Comments\Events\CommentHidden;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Support\CommentAuthorizer;
 
-final class HideCommentAction
+final readonly class HideCommentAction
 {
     public function __construct(
-        private readonly CommentAuthorizer $authorizer,
+        private CommentAuthorizer $authorizer,
     ) {}
 
     public function execute(Comment $comment): Comment

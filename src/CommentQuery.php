@@ -8,26 +8,27 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
-use RoundlyConsulting\Comments\Actions\ApproveCommentAction;
-use RoundlyConsulting\Comments\Actions\DeleteCommentAction;
-use RoundlyConsulting\Comments\Actions\HideCommentAction;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Support\CommentModel;
 
 /**
- * A fluent read/moderation side mirroring the write builder. Scope it to a
- * subject (`for`) or an author (`byAuthor`), chain filters and ordering, then
- * fetch with `get`/`paginate` or moderate in bulk with `approveAll`/`hideAll`/
- * `deleteAll`.
+ * A fluent read/moderation side mirroring the write builder. Start it site-wide
+ * (`Comments::query()`) or scoped to a subject (`Comments::for($post)`) or an author
+ * (`Comments::byAuthor($user)`), chain filters and ordering, then fetch with
+ * `get`/`paginate` or moderate in bulk with `approveAll`/`hideAll`/`deleteAll`.
+ *
+ * Bulk moderation runs each comment through the manager it came from, so a policy, the
+ * per-comment events and `Comments::fake()` all see every row.
  */
 final class CommentQuery
 {
     /** @var Builder<Comment> */
     private Builder $query;
 
-    public function __construct()
-    {
+    public function __construct(
+        private readonly CommentsManager $manager,
+    ) {
         $this->query = CommentModel::class()::query();
     }
 
@@ -211,7 +212,7 @@ final class CommentQuery
      */
     public function approveAll(): int
     {
-        return $this->each(fn (Comment $comment) => app(ApproveCommentAction::class)->execute($comment));
+        return $this->each(fn (Comment $comment): Comment => $this->manager->approve($comment));
     }
 
     /**
@@ -219,7 +220,7 @@ final class CommentQuery
      */
     public function hideAll(): int
     {
-        return $this->each(fn (Comment $comment) => app(HideCommentAction::class)->execute($comment));
+        return $this->each(fn (Comment $comment): Comment => $this->manager->hide($comment));
     }
 
     /**
@@ -227,7 +228,9 @@ final class CommentQuery
      */
     public function deleteAll(): int
     {
-        return $this->each(fn (Comment $comment) => app(DeleteCommentAction::class)->execute($comment));
+        return $this->each(function (Comment $comment): void {
+            $this->manager->delete($comment);
+        });
     }
 
     /**

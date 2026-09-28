@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use RoundlyConsulting\Comments\CommentQuery;
+use RoundlyConsulting\Comments\Facades\Comments;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Tests\ActorTestModel;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
@@ -56,11 +56,11 @@ it('ranks a thread by most-liked and trending', function (): void {
     Likes::actor(ActorTestModel::create())->like($popular);
     Likes::actor(ActorTestModel::create())->like($quiet);
 
-    $byLikes = (new CommentQuery)->for($post)->orderByLikesDesc()->get();
+    $byLikes = Comments::for($post)->orderByLikesDesc()->get();
     expect($byLikes->first()->is($popular))->toBeTrue()
         ->and($byLikes->last()->is($quiet))->toBeTrue();
 
-    $trending = (new CommentQuery)->for($post)->orderByTrending()->get();
+    $trending = Comments::for($post)->orderByTrending()->get();
     expect($trending->first()->is($popular))->toBeTrue();
 });
 
@@ -72,7 +72,7 @@ it('hydrates per-viewer like-state in a single query', function (): void {
 
     Likes::actor($viewer)->like($liked);
 
-    $feed = (new CommentQuery)->for($post)
+    $feed = Comments::for($post)
         ->withLikedState($viewer)
         ->oldest()
         ->get()
@@ -88,7 +88,7 @@ it('renders a guest liked state without a viewer', function (): void {
     $post = PostTestModel::create();
     $comment = Comment::factory()->for($post, 'commentable')->create();
 
-    $row = (new CommentQuery)->for($post)->withLikedState()->get()->first();
+    $row = Comments::for($post)->withLikedState()->get()->first();
 
     expect((int) $row->is_liked)->toBe(0)
         ->and($row->liked_reaction)->toBeNull();

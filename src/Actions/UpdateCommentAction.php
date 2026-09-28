@@ -10,16 +10,17 @@ use RoundlyConsulting\Comments\Exceptions\CommentRejectedException;
 use RoundlyConsulting\Comments\Exceptions\CommentsLockedException;
 use RoundlyConsulting\Comments\Exceptions\InvalidCommentBodyException;
 use RoundlyConsulting\Comments\Models\Comment;
-use RoundlyConsulting\Comments\Models\CommentLock;
 use RoundlyConsulting\Comments\Support\Blocklist;
 use RoundlyConsulting\Comments\Support\CommentAuthorizer;
+use RoundlyConsulting\Comments\Support\CommentLocks;
 
-final class UpdateCommentAction
+final readonly class UpdateCommentAction
 {
     public function __construct(
-        private readonly Blocklist $blocklist,
-        private readonly CommentAuthorizer $authorizer,
-        private readonly SyncCommentMentionsAction $syncMentions,
+        private Blocklist $blocklist,
+        private CommentAuthorizer $authorizer,
+        private CommentLocks $locks,
+        private SyncCommentMentionsAction $syncMentions,
     ) {}
 
     public function execute(UpdateCommentData $data): Comment
@@ -53,18 +54,14 @@ final class UpdateCommentAction
         return $data->comment;
     }
 
+    /**
+     * A comment in a locked thread (its own lock or an ancestor's) or on a locked subject is
+     * frozen against edits.
+     */
     private function guardLocked(Comment $comment): void
     {
-        if ($comment->isLocked()) {
-            throw CommentsLockedException::make();
-        }
-
-        $locked = CommentLock::query()
-            ->where('lockable_type', $comment->commentable_type)
-            ->where('lockable_id', $comment->commentable_id)
-            ->exists();
-
-        if ($locked) {
+        if ($this->locks->threadLocked($comment)
+            || $this->locks->subjectLocked($comment->commentable_type, $comment->commentable_id)) {
             throw CommentsLockedException::make();
         }
     }

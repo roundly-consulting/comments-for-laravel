@@ -13,17 +13,18 @@ use RoundlyConsulting\Comments\Exceptions\InvalidCommentBodyException;
 use RoundlyConsulting\Comments\Exceptions\InvalidCommentParentException;
 use RoundlyConsulting\Comments\Exceptions\MaxReplyDepthExceededException;
 use RoundlyConsulting\Comments\Models\Comment;
-use RoundlyConsulting\Comments\Models\CommentLock;
 use RoundlyConsulting\Comments\Support\Blocklist;
 use RoundlyConsulting\Comments\Support\CommentAuthorizer;
+use RoundlyConsulting\Comments\Support\CommentLocks;
 use RoundlyConsulting\Comments\Support\CommentModel;
 
-final class WriteCommentAction
+final readonly class WriteCommentAction
 {
     public function __construct(
-        private readonly Blocklist $blocklist,
-        private readonly CommentAuthorizer $authorizer,
-        private readonly SyncCommentMentionsAction $syncMentions,
+        private Blocklist $blocklist,
+        private CommentAuthorizer $authorizer,
+        private CommentLocks $locks,
+        private SyncCommentMentionsAction $syncMentions,
     ) {}
 
     public function execute(WriteCommentData $data): Comment
@@ -104,17 +105,12 @@ final class WriteCommentAction
 
     private function guardLocked(WriteCommentData $data, string $commentableType, int|string $commentableId): void
     {
-        // A locked reply chain blocks further replies to it.
-        if ($data->parent instanceof Comment && $data->parent->isLocked()) {
+        // A thread lock on the parent or any of its ancestors blocks replies anywhere below it.
+        if ($data->parent instanceof Comment && $this->locks->threadLocked($data->parent)) {
             throw CommentsLockedException::make();
         }
 
-        $locked = CommentLock::query()
-            ->where('lockable_type', $commentableType)
-            ->where('lockable_id', $commentableId)
-            ->exists();
-
-        if ($locked) {
+        if ($this->locks->subjectLocked($commentableType, $commentableId)) {
             throw CommentsLockedException::make();
         }
     }

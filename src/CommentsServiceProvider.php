@@ -41,7 +41,7 @@ final class CommentsServiceProvider extends PackageServiceProvider
     {
         parent::register();
 
-        $this->app->singleton(CommentManager::class);
+        $this->app->singleton(CommentsManager::class);
     }
 
     public function boot(): void

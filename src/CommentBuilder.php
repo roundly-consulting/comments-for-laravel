@@ -8,6 +8,10 @@ use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Comments\DataTransferObjects\WriteCommentData;
 use RoundlyConsulting\Comments\Models\Comment;
 
+/**
+ * The write side: `Comments::on($post)->as($user)->body('Hi')->reply($parent)->post()`. Posting
+ * goes through {@see CommentsManager::write()}, so the fake records it.
+ */
 final class CommentBuilder
 {
     private ?Model $author = null;
@@ -19,7 +23,7 @@ final class CommentBuilder
     private ?Comment $parent = null;
 
     public function __construct(
-        private readonly CommentManager $manager,
+        private readonly CommentsManager $manager,
         private readonly Model $commentable,
     ) {}
 

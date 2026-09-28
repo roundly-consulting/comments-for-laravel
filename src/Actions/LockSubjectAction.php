@@ -9,10 +9,10 @@ use RoundlyConsulting\Comments\Models\CommentLock;
 use RoundlyConsulting\Comments\Support\CommentAuthorizer;
 use RoundlyConsulting\Comments\Support\CommentModel;
 
-final class LockSubjectAction
+final readonly class LockSubjectAction
 {
     public function __construct(
-        private readonly CommentAuthorizer $authorizer,
+        private CommentAuthorizer $authorizer,
     ) {}
 
     public function execute(Model $subject): CommentLock

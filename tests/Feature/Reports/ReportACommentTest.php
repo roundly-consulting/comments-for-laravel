@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use RoundlyConsulting\Comments\CommentQuery;
+use RoundlyConsulting\Comments\Facades\Comments;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Tests\ActorTestModel;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
@@ -55,12 +55,12 @@ it('surfaces a moderation queue ordered by report volume', function (): void {
     Reports::report($noisy)->by(ActorTestModel::create())->for('spam')->create();
     Reports::report($quiet)->by(ActorTestModel::create())->for('spam')->create();
 
-    $queue = (new CommentQuery)->for($post)->mostReported()->get();
+    $queue = Comments::for($post)->mostReported()->get();
 
     expect($queue->first()->is($noisy))->toBeTrue()
         ->and((int) $queue->first()->reports_count)->toBe(2);
 
-    $overThreshold = (new CommentQuery)->for($post)->reportedMoreThan(1)->get();
+    $overThreshold = Comments::for($post)->reportedMoreThan(1)->get();
 
     expect($overThreshold)->toHaveCount(1)
         ->and($overThreshold->first()->is($noisy))->toBeTrue();
