@@ -8,7 +8,7 @@ use Illuminate\Support\Facades\Storage;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
 use RoundlyConsulting\MediaLibrary\Contracts\HasMedia;
-use RoundlyConsulting\MediaLibrary\Facades\Media;
+use RoundlyConsulting\MediaLibrary\Facades\MediaLibrary;
 
 beforeEach(function (): void {
     Storage::fake('public');
@@ -93,7 +93,7 @@ it('strips a token whose uuid is not owned by the comment', function (): void {
     $comment = Comment::factory()->for(PostTestModel::create(), 'commentable')->create();
 
     // Global media (not in the comment's bucket) must never resolve inline.
-    $global = Media::add(UploadedFile::fake()->image('global.jpg', 400, 300))->toBucket('attachments');
+    $global = MediaLibrary::add(UploadedFile::fake()->image('global.jpg', 400, 300))->toBucket('attachments');
 
     $comment->update(['comment' => "a [media:{$global->uuid}] b"]);
 
