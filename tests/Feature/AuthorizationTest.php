@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Gate;
+use RoundlyConsulting\Comments\Exceptions\InvalidCommentParentException;
 use RoundlyConsulting\Comments\Exceptions\UnauthorizedCommentActionException;
 use RoundlyConsulting\Comments\Facades\Comments;
 use RoundlyConsulting\Comments\Models\Comment;
@@ -90,6 +91,24 @@ it('hands the subject being commented on to the create policy', function (): voi
 
 it('authorizes a reply against the root subject', function (): void {
     $open = PostTestModel::create();
+    $closed = PostTestModel::create();
+    $root = Comments::on($open)->body('root')->post();
+    $closedRoot = Comments::on($closed)->body('closed root')->post();
+
+    config()->set('comments.authorization', true);
+    $this->actingAs(UserTestModel::create());
+    Gate::policy(Comment::class, SubjectScopedCommentPolicy::class);
+    SubjectScopedCommentPolicy::$openSubjectKey = $open->getKey();
+
+    $reply = Comments::on($open)->reply($root)->body('reply')->post();
+
+    expect($reply->commentable_id)->toBe($open->getKey())
+        ->and(fn () => Comments::on($closed)->reply($closedRoot)->body('nope')->post())
+        ->toThrow(UnauthorizedCommentActionException::class);
+});
+
+it('refuses a reply whose parent belongs to another subject before asking the policy', function (): void {
+    $open = PostTestModel::create();
     $root = Comments::on($open)->body('root')->post();
 
     config()->set('comments.authorization', true);
@@ -97,11 +116,11 @@ it('authorizes a reply against the root subject', function (): void {
     Gate::policy(Comment::class, SubjectScopedCommentPolicy::class);
     SubjectScopedCommentPolicy::$openSubjectKey = $open->getKey();
 
-    // The builder's subject is ignored for a reply (it inherits the parent's), so the
-    // policy must see the parent's subject too — not whatever the caller passed.
-    $reply = Comments::on(PostTestModel::create())->reply($root)->body('reply')->post();
-
-    expect($reply->commentable_id)->toBe($open->getKey());
+    // The subject passed alongside a parent is a scope, never silently swapped for the
+    // parent's: a reply can't be smuggled onto a subject the caller didn't name.
+    expect(fn () => Comments::on(PostTestModel::create())->reply($root)->body('reply')->post())
+        ->toThrow(InvalidCommentParentException::class)
+        ->and($open->comments()->count())->toBe(1);
 });
 
 it('writes through the actor trait under the policy', function (): void {

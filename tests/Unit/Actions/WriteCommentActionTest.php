@@ -8,6 +8,7 @@ use RoundlyConsulting\Comments\DataTransferObjects\WriteCommentData;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Events\CommentCreated;
 use RoundlyConsulting\Comments\Exceptions\InvalidCommentBodyException;
+use RoundlyConsulting\Comments\Exceptions\InvalidCommentParentException;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Tests\ActorTestModel;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
@@ -124,4 +125,28 @@ it('stops the depth walk when an ancestor is missing', function (): void {
     ));
 
     expect($comment->parent_id)->toBe($child->getKey());
+});
+
+it('refuses a parent from another subject of the same type', function (): void {
+    $root = Comment::factory()->for(PostTestModel::create(), 'commentable')->create();
+
+    app(WriteCommentAction::class)->execute(new WriteCommentData(
+        commentable: PostTestModel::create(),
+        body: 'reply',
+        parent: $root,
+    ));
+})->throws(InvalidCommentParentException::class);
+
+it('refuses a parent from a subject of another type with the same key', function (): void {
+    $post = PostTestModel::create();
+    $actor = ActorTestModel::create();
+    $root = Comment::factory()->for($post, 'commentable')->create();
+
+    expect($actor->getKey())->toBe($post->getKey())
+        ->and(fn () => app(WriteCommentAction::class)->execute(new WriteCommentData(
+            commentable: $actor,
+            body: 'reply',
+            parent: $root,
+        )))->toThrow(InvalidCommentParentException::class)
+        ->and(Comment::query()->count())->toBe(1);
 });

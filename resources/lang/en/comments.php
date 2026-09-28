@@ -8,5 +8,6 @@ return [
     'max_depth_exceeded' => 'A reply cannot be nested deeper than :max levels.',
     'rejected' => 'This comment contains content that is not allowed.',
     'locked' => 'This thread is locked and cannot accept new or edited comments.',
+    'foreign_parent' => 'A reply must be posted on the same subject as the comment it replies to.',
     'unauthorized' => 'You are not authorized to perform this comment action.',
 ];

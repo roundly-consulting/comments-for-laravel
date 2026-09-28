@@ -10,6 +10,7 @@ use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Exceptions\CommentRejectedException;
 use RoundlyConsulting\Comments\Exceptions\CommentsLockedException;
 use RoundlyConsulting\Comments\Exceptions\InvalidCommentBodyException;
+use RoundlyConsulting\Comments\Exceptions\InvalidCommentParentException;
 use RoundlyConsulting\Comments\Exceptions\MaxReplyDepthExceededException;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Models\CommentLock;
@@ -27,10 +28,16 @@ final class WriteCommentAction
 
     public function execute(WriteCommentData $data): Comment
     {
+        // A reply joins its parent's subject, so a parent from another subject is refused up
+        // front — the subject passed in is then the one the policy and the row both see.
+        if ($data->parent instanceof Comment) {
+            $this->guardParentSubject($data->parent, $data->commentable);
+        }
+
         // The Comment model class routes the check to the Comment policy's `create` ability
         // (a bare ability name would only ever hit a global gate of that name), and the
         // subject lets the policy decide per subject: `create(?Model $user, ?Model $commentable)`.
-        $this->authorizer->authorize('create', [CommentModel::class(), $this->subject($data)]);
+        $this->authorizer->authorize('create', [CommentModel::class(), $data->commentable]);
 
         $body = $this->validateBody($data->body);
 
@@ -113,25 +120,9 @@ final class WriteCommentAction
     }
 
     /**
-     * The model actually being commented on: a reply belongs to its parent's subject, not to
-     * whatever subject the caller passed alongside it.
-     */
-    private function subject(WriteCommentData $data): ?Model
-    {
-        if (! $data->parent instanceof Comment) {
-            return $data->commentable;
-        }
-
-        // Read through the relation loader rather than the `@property-read` docblock: a
-        // subject deleted since the parent was written resolves to null, not a Model.
-        $subject = $data->parent->getRelationValue('commentable');
-
-        return $subject instanceof Model ? $subject : null;
-    }
-
-    /**
-     * A reply inherits the parent's subject morph so replies stay attached to
-     * the root subject (e.g. the post), keeping flat listings correct.
+     * The subject morph the row is stored under. A reply sits on its parent's subject (checked
+     * by {@see self::guardParentSubject()}), so replies stay attached to the root subject (e.g.
+     * the post), keeping flat listings correct.
      *
      * The key is kept as the subject returns it: `comments.key_type` lets a host key its
      * subjects by uuid/ulid, and an integer cast would store `0` (or a digit prefix) for them.
@@ -140,13 +131,25 @@ final class WriteCommentAction
      */
     private function resolveSubject(WriteCommentData $data): array
     {
-        if (! $data->parent instanceof Comment) {
-            return [$data->commentable->getMorphClass(), $this->subjectKey($data->commentable)];
+        if ($data->parent instanceof Comment) {
+            $this->guardReplyDepth($data->parent);
         }
 
-        $this->guardReplyDepth($data->parent);
+        return [$data->commentable->getMorphClass(), $this->subjectKey($data->commentable)];
+    }
 
-        return [$data->parent->commentable_type, $data->parent->commentable_id];
+    /**
+     * The subject a reply is written on is a scope, not a hint: a parent that belongs to another
+     * subject is refused rather than silently re-targeting the reply onto that other subject.
+     */
+    private function guardParentSubject(Comment $parent, Model $commentable): void
+    {
+        $sameSubject = $parent->commentable_type === $commentable->getMorphClass()
+            && (string) $parent->commentable_id === (string) $this->subjectKey($commentable);
+
+        if (! $sameSubject) {
+            throw InvalidCommentParentException::foreignSubject();
+        }
     }
 
     private function subjectKey(Model $subject): int|string
