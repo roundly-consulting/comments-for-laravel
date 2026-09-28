@@ -7,8 +7,9 @@ parameters:
         - tests/ActorTestModel.php
         - tests/PostTestModel.php
     # AssertsComments is host-test-facing tooling, only used from consumers' test suites.
+    # CommentsFake is analysed like the rest of src/.
     excludePaths:
-        - src/Testing
+        - src/Testing/AssertsComments.php
     checkModelProperties: true
     # This package ships its own config/ dir; env() is correct there.
     configDirectories:

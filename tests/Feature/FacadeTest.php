@@ -19,6 +19,7 @@ use RoundlyConsulting\Comments\Tests\PostTestModel;
 it('pins the facade contract', function (): void {
     expect(Comments::class)
         ->toDocumentItsRoot()
+        ->toBeFakeable()
         ->toReachEveryAction(__DIR__.'/../../src/Actions');
 });
 
