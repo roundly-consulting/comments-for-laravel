@@ -28,8 +28,8 @@ On top of the basics it adds **likes / upvotes** and typed reactions, **report-a
 moderation with an auto-hide listener, **media attachments** with inline `[media:UUID]` body
 rendering, `@mention` parsing, a configurable **blocklist** filter, thread/subject **locking**,
 a fluent **reading & bulk-moderation** query, N+1-free **comment counts**, opt-in
-**authorization** via a policy, ready-made **API Resources**, and **testing helpers** for host
-apps.
+**authorization** via a policy, ready-made **API Resources**, and a recording
+**`Comments::fake()`** plus testing helpers for host apps.
 
 The social + moderation + media features build on four sibling roundly packages — see
 [Integrates with](#integrates-with).
@@ -171,28 +171,9 @@ class User extends Model
 }
 ```
 
-### Writing a comment
+### The `Comments` facade
 
-`GivesComments` adds a `writeComment()` method. Pass the model being commented on, the body,
-and an optional visibility flag (defaults to `true`):
-
-```php
-$post = Post::find(1);
-$user = auth()->user();
-
-$comment = $user->writeComment(
-    commentable: $post,
-    comment: 'This is a very good blog post, thanks for sharing!',
-    visible: true, // optional, defaults to true
-);
-```
-
-`writeComment()` returns the created `Comment` instance.
-
-### The `Comments` facade and fluent builder
-
-For a discoverable, IDE-friendly entry point, use the `Comments` facade. The fluent builder
-reads like a sentence:
+`Comments` is the whole API in one place. The fluent builder reads like a sentence:
 
 ```php
 use RoundlyConsulting\Comments\Facades\Comments;
@@ -202,7 +183,7 @@ $comment = Comments::on($post)
     ->body('Nice write-up!')
     ->post();
 
-// A reply, fluently:
+// A reply, fluently (the parent must belong to the same subject):
 Comments::on($post)->as($user)->reply($comment)->body('Thanks!')->post();
 
 // Hidden comment:
@@ -211,20 +192,64 @@ Comments::on($post)->as($user)->visible(false)->body('Internal note')->post();
 
 The author is optional — omit `->as(...)` to record an anonymous/guest comment.
 
-### Typed DTO escape hatch
+| Method | Returns | Does |
+|---|---|---|
+| `on($subject)` | `CommentBuilder` | Start a comment: `->as()`, `->body()`, `->visible()`, `->reply()`, `->post()` |
+| `write(WriteCommentData $data)` | `Comment` | Write from a typed DTO |
+| `update($comment, $body)` / `delete($comment)` / `restore($comment)` | `Comment` / `void` / `Comment` | Edit, soft-delete, restore |
+| `approve($comment)` / `hide($comment)` | `Comment` | Moderate |
+| `query()` | `CommentQuery` | Site-wide read/moderation query |
+| `for($subject)` / `byAuthor($author)` | `CommentQuery` | The same query, scoped to a subject or an author |
+| `lock($subject)` / `unlock($subject)` / `isLocked($subject)` | `CommentLock` / `void` / `bool` | Lock a whole subject |
+| `lockThread($comment)` / `unlockThread($comment)` / `isThreadLocked($comment)` | `Comment` / `Comment` / `bool` | Lock the thread under a comment |
+| `fake()` | `CommentsFake` | Record every mutation in tests (see [Testing](#testing-with-commentsfake)) |
 
-For queued or service code, drive the action directly with a DTO:
+### Without the facade
+
+Every facade method lives on `CommentsManager`, so you can inject it instead — same API,
+same behaviour. Each method runs one action class, which you can also call directly (from a
+queued job, say):
 
 ```php
 use RoundlyConsulting\Comments\Actions\WriteCommentAction;
+use RoundlyConsulting\Comments\CommentsManager;
 use RoundlyConsulting\Comments\DataTransferObjects\WriteCommentData;
 
+final class PublishFeedback
+{
+    public function __construct(private CommentsManager $comments) {}
+
+    public function __invoke(Post $post, User $user, string $body): Comment
+    {
+        return $this->comments->on($post)->as($user)->body($body)->post();
+    }
+}
+
+// The raw action:
 $comment = app(WriteCommentAction::class)->execute(new WriteCommentData(
     commentable: $post,
     body: 'From a job',
-    author: $user,       // optional
-    parent: $rootComment, // optional reply
+    author: $user,        // optional
+    parent: $rootComment, // optional reply — must belong to $post
 ));
+```
+
+The actions are `WriteCommentAction`, `UpdateCommentAction`, `DeleteCommentAction`,
+`RestoreCommentAction`, `ApproveCommentAction`, `HideCommentAction`, `LockSubjectAction`,
+`UnlockSubjectAction`, `LockThreadAction` and `UnlockThreadAction`.
+
+### Writing as the author model
+
+`GivesComments` adds a `writeComment()` shortcut. Pass the model being commented on, the body,
+and an optional visibility flag (defaults to `true`). It goes through the same manager as the
+facade:
+
+```php
+$comment = $user->writeComment(
+    commentable: $post,
+    comment: 'This is a very good blog post, thanks for sharing!',
+    visible: true, // optional, defaults to true
+);
 ```
 
 ### Editing, deleting, restoring
@@ -246,7 +271,14 @@ Comments::approve($comment); // status → approved, dispatches CommentApproved
 Comments::hide($comment);    // status → hidden,   dispatches CommentHidden
 ```
 
-Query scopes make moderation queues easy:
+A site-wide moderation queue — every subject at once — starts from `Comments::query()`:
+
+```php
+Comments::query()->pending()->mostReported()->paginate();
+Comments::query()->pending()->approveAll();
+```
+
+Plain query scopes work too:
 
 ```php
 use RoundlyConsulting\Comments\Models\Comment;
@@ -261,7 +293,9 @@ Comment::roots()->get();    // top-level comments only
 ### Threaded replies
 
 Replies are stored with both their root subject (so flat listings still work) and a
-`parent_id` link to the comment they answer. Depth is bounded by `comments.max_depth`.
+`parent_id` link to the comment they answer. Depth is bounded by `comments.max_depth`. A reply
+is written on the same subject as its parent: `Comments::on($otherPost)->reply($comment)`
+throws `InvalidCommentParentException` rather than moving the reply to the parent's subject.
 
 ```php
 // Direct children of a comment:
@@ -295,6 +329,7 @@ carrying the comment on its `$comment` property:
 - `CommentDeleted`
 - `CommentApproved`
 - `CommentHidden` (also dispatched by the auto-hide moderation listener)
+- `CommentThreadLocked` / `CommentThreadUnlocked`
 - `CommentMentioned` (`$event->mention`)
 
 ```php
@@ -452,20 +487,26 @@ it is stored in that status instead.
 
 ### Locking threads
 
-Lock a subject to stop new or edited comments, or lock a single reply chain:
+Lock a whole subject, or just the thread under one comment:
 
 ```php
-Comments::lock($post);            // block all new/edited comments on the post
+Comments::lock($post);              // block all new/edited comments on the post
 Comments::unlock($post);
-$post->commentsLocked();          // bool
-Comments::isLocked($post);        // bool
+Comments::isLocked($post);          // bool
+$post->commentsLocked();            // bool, same answer
 
-$comment->lockReplies();          // freeze just this comment's reply chain + edits
-$comment->unlockReplies();
-$comment->isLocked();             // bool
+Comments::lockThread($comment);     // no new replies anywhere below it, no edits in it
+Comments::unlockThread($comment);
+Comments::isThreadLocked($reply);   // bool — true when it or any ancestor is locked
+
+$comment->lockReplies();            // same as Comments::lockThread($comment)
+$comment->unlockReplies();          // same as Comments::unlockThread($comment)
+$comment->isLocked();               // bool — this comment's own thread lock only
 ```
 
-Writing or editing against a lock throws `CommentsLockedException`.
+A thread lock covers the whole subtree: a reply to a reply is still in the thread. Locking
+fires `CommentThreadLocked`, unlocking `CommentThreadUnlocked` — only when the state actually
+changes. Writing or editing against a lock throws `CommentsLockedException`.
 
 ### Reading & bulk moderation
 
@@ -478,8 +519,10 @@ Comments::for($post)->approved()->newest()->paginate(20);
 Comments::for($post)->visible()->rootsOnly()->withReplies()->get();
 Comments::for($post)->pending()->count();
 Comments::byAuthor($user)->get();
+Comments::query()->hidden()->newest()->get();   // site-wide, every subject
 
-// Bulk moderation — fires the lifecycle event per affected comment:
+// Bulk moderation — runs each comment through the manager, so the policy, the lifecycle
+// event and Comments::fake() all see every row:
 Comments::for($post)->pending()->approveAll();
 Comments::byAuthor($user)->hideAll();
 Comments::for($post)->deleteAll();
@@ -509,14 +552,14 @@ Gate::policy(Comment::class, CommentPolicy::class);
 
 When enabled, every mutation checks the matching ability of the `Comment` policy and throws
 `UnauthorizedCommentActionException` on denial: `create`, `update`, `delete`, `restore`,
-`moderate` (approve / hide), and `lock` / `unlock` (subject locks as well as `lockReplies()` /
-`unlockReplies()`). A policy registered for `Comment` also covers a subclass configured in
+`moderate` (approve / hide), and `lock` / `unlock` (subject locks as well as `lockThread()` /
+`unlockThread()`). A policy registered for `Comment` also covers a subclass configured in
 `comments.model`; with nothing registered, Laravel's policy auto-discovery resolves the shipped,
 permissive `CommentPolicy`.
 
 `create` also receives the subject being commented on — for a reply, the root subject the reply
 joins — so you can decide per subject; `lock` / `unlock` receive what is being locked (the
-subject, or the comment for a reply-chain lock). `$user` is `null` for a guest. A custom policy
+subject, or the comment for a thread lock). `$user` is `null` for a guest. A custom policy
 that lacks one of these methods denies that action, so extend the shipped `CommentPolicy`:
 
 ```php
@@ -562,10 +605,51 @@ return CommentResource::collection(
 The `likes` block (`count` / `viewer_state` / `breakdown`) is rendered only when the `likes`
 relation is loaded, and `attachments` only when `media` is loaded.
 
+### Testing with `Comments::fake()`
+
+`Comments::fake()` swaps in a recording `CommentsFake`. It still performs every operation —
+rows are written, policies and locks apply, events fire — and records each successful mutation,
+however it was made: the facade, an injected `CommentsManager`, the builder, a query's bulk
+moderation, `$user->writeComment()` or `$comment->lockReplies()`.
+
+```php
+use RoundlyConsulting\Comments\Facades\Comments;
+
+$fake = Comments::fake();
+
+// ... run the code under test ...
+
+$fake->assertPosted(fn (Comment $comment) => $comment->comment === 'Hi');
+$fake->assertApproved($comment);
+$fake->assertLocked($post);
+$fake->assertThreadLocked();
+$fake->assertNothingDeleted();
+```
+
+Each assertion takes an optional model (matched with `is()`) or a callback that returns `true`
+on a match:
+
+| Recorded by | Assert | Assert none |
+|---|---|---|
+| `on()->post()`, `write()`, `writeComment()` | `assertPosted()` | `assertNothingPosted()` |
+| `update()` | `assertUpdated()` | `assertNothingUpdated()` |
+| `delete()`, `deleteAll()` | `assertDeleted()` | `assertNothingDeleted()` |
+| `restore()` | `assertRestored()` | `assertNothingRestored()` |
+| `approve()`, `approveAll()` | `assertApproved()` | `assertNothingApproved()` |
+| `hide()`, `hideAll()` | `assertHidden()` | `assertNothingHidden()` |
+| `lock($subject)` | `assertLocked()` | `assertNothingLocked()` |
+| `unlock($subject)` | `assertUnlocked()` | `assertNothingUnlocked()` |
+| `lockThread()`, `lockReplies()` | `assertThreadLocked()` | `assertNothingThreadLocked()` |
+| `unlockThread()`, `unlockReplies()` | `assertThreadUnlocked()` | `assertNothingThreadUnlocked()` |
+
+A call that throws records nothing. The auto-hide listener moderates on the system's behalf
+without a user, so it bypasses the manager and is not recorded — assert `CommentHidden` with
+`Event::fake()` instead.
+
 ### Testing helpers
 
 The factory ships states (`pending()`, `hidden()`, `locked()`, `reply($parent)`,
-`by($user)`), and the `AssertsComments` trait adds expectations for host-app tests:
+`by($user)`), and the `AssertsComments` trait adds database expectations for host-app tests:
 
 ```php
 use RoundlyConsulting\Comments\Testing\AssertsComments;

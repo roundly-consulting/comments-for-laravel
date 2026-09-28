@@ -14,7 +14,8 @@ Initial public release.
   authors, plus anonymous guest comments.
 - Fluent `Comments::on($post)->as($user)->body(...)->post()` builder, `WriteCommentAction` with a
   typed DTO, and edit, soft-delete and restore.
-- Threaded replies (`reply()`, `threadedComments()`).
+- Threaded replies (`reply()`, `threadedComments()`); a reply to another subject's comment throws
+  `InvalidCommentParentException`.
 - Moderation workflow — pending, approved, hidden — with scopes and bulk moderation
   (`Comments::for($post)->pending()->approveAll()`).
 - An event for every step of the comment lifecycle.
@@ -23,7 +24,13 @@ Initial public release.
 - Report-a-comment with auto-hide and approval-based moderation, built on reports-for-laravel.
 - Media attachments with inline `[media:UUID]` rendering, built on media-library-for-laravel.
 - `@mention` parsing with a `CommentMentioned` event, and a configurable blocklist filter.
-- Thread and reply locking (`Comments::lock()`, `lockReplies()`).
+- Subject and thread locking (`Comments::lock()`, `Comments::lockThread()`, `isThreadLocked()`),
+  with `CommentThreadLocked` / `CommentThreadUnlocked` events; a thread lock covers the whole
+  subtree under the comment.
+- Site-wide moderation queries (`Comments::query()->pending()->mostReported()->paginate()`).
+- An injectable `CommentsManager` behind the `Comments` facade, one action per operation.
 - N+1-free comment counts (`withCommentCounts()`), an opt-in `CommentPolicy` and a
   `CommentResource` API resource.
+- `Comments::fake()` — a recording `CommentsFake` with `assert*()` / `assertNothing*()` for every
+  mutation, including those made through the builder, bulk moderation and the model traits.
 - Factory states and `AssertsComments` test assertions.
