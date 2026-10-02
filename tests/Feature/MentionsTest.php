@@ -106,3 +106,20 @@ it('does not re-notify on an edit that keeps the same mentions', function (): vo
     Event::assertNotDispatched(CommentMentioned::class);
     expect($comment->mentions()->pluck('handle')->all())->toBe(['Alice']);
 });
+
+it('resolves a mention at the end of a sentence', function (): void {
+    Event::fake([CommentMentioned::class]);
+    $alice = ActorTestModel::create();
+    config()->set('comments.mention_resolver', fn (string $handle): ?ActorTestModel => $handle === 'alice' ? $alice : null);
+
+    $comment = Comments::on(PostTestModel::create())->body('Great point, thanks @alice.')->post();
+
+    expect($comment->mentions()->pluck('handle')->all())->toBe(['alice']);
+    Event::assertDispatchedTimes(CommentMentioned::class, 1);
+});
+
+it('keeps dots inside a handle but trims trailing punctuation', function (): void {
+    $comment = Comments::on(PostTestModel::create())->body('ping @john.doe, @jane- and @bob_99...')->post();
+
+    expect($comment->mentions()->pluck('handle')->all())->toEqualCanonicalizing(['john.doe', 'jane', 'bob_99']);
+});

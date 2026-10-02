@@ -77,11 +77,15 @@ final readonly class SyncCommentMentionsAction
     }
 
     /**
+     * The unique `@handle`s in the body. A handle may carry `.` and `-` inside it
+     * (`@john.doe`) but ends on a letter, digit or underscore, so the full stop of
+     * "thanks @alice." is not part of the handle; `(?<!\w)` keeps emails out.
+     *
      * @return list<string>
      */
     private function parse(string $body): array
     {
-        preg_match_all('/(?<!\w)@([A-Za-z0-9_.-]+)/', $body, $matches);
+        preg_match_all('/(?<!\w)@([A-Za-z0-9_](?:[A-Za-z0-9_.-]*[A-Za-z0-9_])?)/', $body, $matches);
 
         /** @var list<string> $handles */
         $handles = array_values(array_unique($matches[1]));
