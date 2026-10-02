@@ -54,32 +54,35 @@ trait HasComments
     }
 
     /**
-     * Eager-load an approved comment count onto this instance, exposed as the
-     * `comments_count` attribute.
+     * Eager-load the public comment count onto this instance, exposed as the `comments_count`
+     * attribute: every visible + approved comment, replies included — exactly what
+     * `Comment::visible()` returns for the subject, so a public counter never reveals a hidden,
+     * pending or `visible = false` comment.
      */
     public function loadCommentCount(): static
     {
-        $this->loadCount(['comments as comments_count' => self::approvedCommentCountConstraint(...)]);
+        $this->loadCount(['comments as comments_count' => self::publicCommentCountConstraint(...)]);
 
         return $this;
     }
 
     /**
-     * Query scope adding an approved `comments_count` without N+1.
+     * Query scope adding the public `comments_count` (see {@see self::loadCommentCount()})
+     * without N+1.
      *
      * @param  Builder<static>  $query
      */
     public function scopeWithCommentCounts(Builder $query): void
     {
-        $query->withCount(['comments as comments_count' => self::approvedCommentCountConstraint(...)]);
+        $query->withCount(['comments as comments_count' => self::publicCommentCountConstraint(...)]);
     }
 
     /**
      * @param  Builder<Comment>  $query
      */
-    private static function approvedCommentCountConstraint(Builder $query): void
+    private static function publicCommentCountConstraint(Builder $query): void
     {
-        $query->where('status', CommentStatus::Approved);
+        $query->where('visible', true)->where('status', CommentStatus::Approved);
     }
 
     /**
