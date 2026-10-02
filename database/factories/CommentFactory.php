@@ -39,6 +39,19 @@ final class CommentFactory extends Factory
     }
 
     /**
+     * Write the comment on the given subject (the model being commented on). A comment needs a
+     * subject, so a factory comment takes this state, `reply($parent)`, or
+     * `for($subject, 'commentable')`.
+     */
+    public function on(Model $subject): self
+    {
+        return $this->state(fn (): array => [
+            'commentable_id' => $subject->getKey(),
+            'commentable_type' => $subject->getMorphClass(),
+        ]);
+    }
+
+    /**
      * Make this comment a reply to the given parent, inheriting its subject.
      */
     public function reply(Comment $parent): self

@@ -28,6 +28,21 @@ it('exposes factory states for pending, hidden, locked, reply and by', function 
         ->and($reply->commentable_id)->toBe($post->getKey());
 });
 
+it('writes a factory comment on a subject with the on() state', function (): void {
+    $post = PostTestModel::create();
+    $user = ActorTestModel::create();
+
+    // The README's testing-helpers example, verbatim.
+    $pending = Comment::factory()->on($post)->pending()->create();
+    $root = Comment::factory()->on($post)->create();
+    $reply = Comment::factory()->reply($root)->by($user)->create();
+
+    expect($pending->commentable->is($post))->toBeTrue()
+        ->and($pending->status)->toBe(CommentStatus::Pending)
+        ->and($reply->commentable->is($post))->toBeTrue()
+        ->and($reply->actor->is($user))->toBeTrue();
+});
+
 it('asserts a subject has been commented on', function (): void {
     $post = PostTestModel::create();
     Comment::factory()->for($post, 'commentable')->create(['comment' => 'great post']);
