@@ -10,6 +10,7 @@ use RoundlyConsulting\Comments\Events\CommentMentioned;
 use RoundlyConsulting\Comments\Facades\Comments;
 use RoundlyConsulting\Comments\Models\CommentMention;
 use RoundlyConsulting\Comments\Tests\ActorTestModel;
+use RoundlyConsulting\Comments\Tests\MentionResolverTestFixture;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
 
 it('parses and stores @handles even without a resolver', function (): void {
@@ -206,3 +207,32 @@ it('notifies nobody when a concurrent approval already claimed the mention', fun
     expect($raced)->toBeTrue();
     Event::assertNotDispatched(CommentMentioned::class);
 });
+
+it('resolves through a config:cache-safe resolver', function (mixed $resolver): void {
+    Event::fake([CommentMentioned::class]);
+    $alice = ActorTestModel::create();
+    config()->set('comments.mention_resolver', $resolver);
+
+    // config:cache writes the config with var_export, which a closure cannot survive.
+    expect(var_export($resolver, true))->toBeString();
+
+    $comment = Comments::on(PostTestModel::create())->body("thanks @user{$alice->getKey()}.")->post();
+
+    expect($comment->mentions()->sole()->mentionable?->is($alice))->toBeTrue();
+    Event::assertDispatchedTimes(CommentMentioned::class, 1);
+})->with([
+    'invokable class' => [MentionResolverTestFixture::class],
+    'class and method' => [[MentionResolverTestFixture::class, 'resolve']],
+]);
+
+it('ignores a resolver that is not callable', function (mixed $resolver): void {
+    config()->set('comments.mention_resolver', $resolver);
+
+    $comment = Comments::on(PostTestModel::create())->body('hi @user1')->post();
+
+    expect($comment->mentions()->sole()->mentionable_id)->toBeNull();
+})->with([
+    'unknown class' => ['App\\Missing\\Resolver'],
+    'unknown method' => [[MentionResolverTestFixture::class, 'missing']],
+    'not invokable' => [PostTestModel::class],
+]);

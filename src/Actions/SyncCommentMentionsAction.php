@@ -95,15 +95,30 @@ final readonly class SyncCommentMentionsAction
 
     private function resolve(string $handle): ?Model
     {
-        /** @var callable|array{0: class-string, 1: string}|null $resolver */
-        $resolver = config('comments.mention_resolver');
+        $resolver = $this->resolver();
 
-        if ($resolver === null) {
-            return null;
-        }
-
-        $resolved = is_callable($resolver) ? $resolver($handle) : null;
+        $resolved = $resolver === null ? null : $resolver($handle);
 
         return $resolved instanceof Model ? $resolved : null;
+    }
+
+    /**
+     * The configured `comments.mention_resolver` as a callable. Keep it `config:cache`-safe:
+     * an invokable class-string or a `[Class::class, 'method']` pair, both built through the
+     * container (so the resolver may take constructor dependencies). A closure works only while
+     * the config is not cached; anything that is not callable resolves no one.
+     */
+    private function resolver(): ?callable
+    {
+        $resolver = config('comments.mention_resolver');
+
+        if (is_string($resolver) && class_exists($resolver)) {
+            $resolver = app($resolver);
+        } elseif (is_array($resolver) && count($resolver) === 2 && is_string($resolver[0] ?? null)
+            && is_string($resolver[1] ?? null) && class_exists($resolver[0])) {
+            $resolver = [app($resolver[0]), $resolver[1]];
+        }
+
+        return is_callable($resolver) ? $resolver : null;
     }
 }
