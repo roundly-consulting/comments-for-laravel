@@ -5,6 +5,7 @@ declare(strict_types=1);
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Exceptions\CommentRejectedException;
 use RoundlyConsulting\Comments\Facades\Comments;
+use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
 
 beforeEach(function (): void {
@@ -65,6 +66,51 @@ it('rejects a blocklisted edit', function (): void {
 
     Comments::update($comment, 'now spam');
 })->throws(CommentRejectedException::class);
+
+it('holds a blocklisted edit for review when configured to pending', function (): void {
+    config()->set('comments.blocklist', ['casino']);
+    config()->set('comments.blocklist_action', 'pending');
+    $post = PostTestModel::create();
+    $comment = Comments::on($post)->body('hello')->post();
+
+    Comments::update($comment, 'visit casino now');
+
+    expect($comment->fresh()->status)->toBe(CommentStatus::Pending)
+        ->and(Comment::visible()->count())->toBe(0);
+});
+
+it('hides a blocklisted edit when configured to hidden', function (): void {
+    config()->set('comments.blocklist', ['casino']);
+    config()->set('comments.blocklist_action', 'hidden');
+    $post = PostTestModel::create();
+    $comment = Comments::on($post)->body('hello')->post();
+
+    Comments::update($comment, 'visit casino now');
+
+    expect($comment->fresh()->status)->toBe(CommentStatus::Hidden);
+});
+
+it('never lifts a hidden comment to pending on a blocklisted edit', function (): void {
+    config()->set('comments.blocklist', ['casino']);
+    config()->set('comments.blocklist_action', 'pending');
+    $post = PostTestModel::create();
+    $comment = Comment::factory()->for($post, 'commentable')->hidden()->create();
+
+    Comments::update($comment, 'visit casino now');
+
+    expect($comment->fresh()->status)->toBe(CommentStatus::Hidden);
+});
+
+it('leaves the status alone on a clean edit', function (): void {
+    config()->set('comments.blocklist', ['casino']);
+    config()->set('comments.blocklist_action', 'pending');
+    $post = PostTestModel::create();
+    $comment = Comment::factory()->for($post, 'commentable')->pending()->create();
+
+    Comments::update($comment, 'perfectly clean');
+
+    expect($comment->fresh()->status)->toBe(CommentStatus::Pending);
+});
 
 it('lets clean comments through untouched', function (): void {
     $post = PostTestModel::create();

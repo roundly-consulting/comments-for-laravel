@@ -7,7 +7,6 @@ namespace RoundlyConsulting\Comments\Actions;
 use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Comments\DataTransferObjects\WriteCommentData;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
-use RoundlyConsulting\Comments\Exceptions\CommentRejectedException;
 use RoundlyConsulting\Comments\Exceptions\CommentsLockedException;
 use RoundlyConsulting\Comments\Exceptions\InvalidCommentBodyException;
 use RoundlyConsulting\Comments\Exceptions\InvalidCommentParentException;
@@ -82,9 +81,8 @@ final readonly class WriteCommentAction
     }
 
     /**
-     * Apply the moderation status, factoring in the blocklist. A blocklisted
-     * body is either rejected outright or downgraded to a pending/hidden
-     * status per `comments.blocklist_action`.
+     * The moderation status a new comment starts at: held per `comments.blocklist_action` when
+     * the body is blocklisted (or rejected outright), otherwise per `comments.require_approval`.
      */
     private function resolveStatus(string $body): CommentStatus
     {
@@ -92,15 +90,7 @@ final readonly class WriteCommentAction
             ? CommentStatus::Pending
             : CommentStatus::Approved;
 
-        if (! $this->blocklist->matches($body)) {
-            return $default;
-        }
-
-        return match ((string) config('comments.blocklist_action', 'reject')) {
-            'pending' => CommentStatus::Pending,
-            'hidden' => CommentStatus::Hidden,
-            default => throw CommentRejectedException::blocked(),
-        };
+        return $this->blocklist->heldStatus($body) ?? $default;
     }
 
     private function guardLocked(WriteCommentData $data, string $commentableType, int|string $commentableId): void

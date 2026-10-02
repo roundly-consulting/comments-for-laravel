@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace RoundlyConsulting\Comments\Actions;
 
 use RoundlyConsulting\Comments\DataTransferObjects\UpdateCommentData;
+use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Events\CommentUpdated;
-use RoundlyConsulting\Comments\Exceptions\CommentRejectedException;
 use RoundlyConsulting\Comments\Exceptions\CommentsLockedException;
 use RoundlyConsulting\Comments\Exceptions\InvalidCommentBodyException;
 use RoundlyConsulting\Comments\Models\Comment;
@@ -41,17 +41,31 @@ final readonly class UpdateCommentAction
             throw InvalidCommentBodyException::tooLong($maxLength);
         }
 
-        if ($this->blocklist->matches($body) && (string) config('comments.blocklist_action', 'reject') === 'reject') {
-            throw CommentRejectedException::blocked();
-        }
-
-        $data->comment->update(['comment' => $body]);
+        $data->comment->update([
+            'comment' => $body,
+            'status' => $this->statusAfterEdit($data->comment->status, $this->blocklist->heldStatus($body)),
+        ]);
 
         $this->syncMentions->execute($data->comment);
 
         CommentUpdated::dispatch($data->comment);
 
         return $data->comment;
+    }
+
+    /**
+     * An edit runs the blocklist exactly like a write: a blocklisted body is rejected or held at
+     * `pending`/`hidden`, so a comment posted clean cannot be edited into spam and stay public.
+     * The edit only ever tightens the status — it never lifts a hidden comment to pending, and a
+     * clean edit leaves a held comment for a moderator to approve.
+     */
+    private function statusAfterEdit(CommentStatus $current, ?CommentStatus $held): CommentStatus
+    {
+        if ($held === CommentStatus::Hidden || ($held === CommentStatus::Pending && $current === CommentStatus::Approved)) {
+            return $held;
+        }
+
+        return $current;
     }
 
     /**

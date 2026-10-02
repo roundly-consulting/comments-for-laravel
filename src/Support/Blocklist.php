@@ -4,8 +4,31 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Comments\Support;
 
+use RoundlyConsulting\Comments\Enums\CommentStatus;
+use RoundlyConsulting\Comments\Exceptions\CommentRejectedException;
+
 final class Blocklist
 {
+    /**
+     * The status a blocklisted body is held at, per `comments.blocklist_action`: `pending` or
+     * `hidden`, `null` for a clean body. The `reject` action (and any unknown one) throws.
+     * Writing and editing both ask here, so an edit cannot slip a payload past the filter.
+     *
+     * @throws CommentRejectedException
+     */
+    public function heldStatus(string $body): ?CommentStatus
+    {
+        if (! $this->matches($body)) {
+            return null;
+        }
+
+        return match ((string) config('comments.blocklist_action', 'reject')) {
+            'pending' => CommentStatus::Pending,
+            'hidden' => CommentStatus::Hidden,
+            default => throw CommentRejectedException::blocked(),
+        };
+    }
+
     /**
      * Whether the body matches any configured banned word or pattern. Plain
      * strings match case-insensitively as whole words; entries that look like
