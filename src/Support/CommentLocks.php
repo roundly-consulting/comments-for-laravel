@@ -14,8 +14,12 @@ use RoundlyConsulting\Comments\Models\CommentLock;
  *
  * @internal
  */
-final class CommentLocks
+final readonly class CommentLocks
 {
+    public function __construct(
+        private CommentAncestry $ancestry,
+    ) {}
+
     /**
      * Whether a subject is locked against new or edited comments.
      */
@@ -31,8 +35,9 @@ final class CommentLocks
      * Whether a comment sits in a locked thread: it, or any ancestor, carries a thread lock.
      *
      * A thread lock covers the whole subtree, not just direct replies — a reply to a reply is
-     * still in the thread. The walk reads the parent relation, which the reply-depth guard has
-     * usually loaded already, and stops at a missing (e.g. soft-deleted) parent or a cycle.
+     * still in the thread. The walk includes soft-deleted ancestors (see {@see CommentAncestry}),
+     * so deleting a comment inside a locked thread does not unlock what sits below it; it stops
+     * at a force-deleted parent or a cycle.
      */
     public function threadLocked(Comment $comment): bool
     {
@@ -42,13 +47,9 @@ final class CommentLocks
         while (! $current->isLocked()) {
             $seen[] = $current->getKey();
 
-            if ($current->parent_id === null || in_array($current->parent_id, $seen, true)) {
-                return false;
-            }
+            $parent = $this->ancestry->parentOf($current);
 
-            $parent = $current->getRelationValue('parent');
-
-            if (! $parent instanceof Comment) {
+            if (! $parent instanceof Comment || in_array($parent->getKey(), $seen, true)) {
                 return false;
             }
 

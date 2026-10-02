@@ -126,3 +126,19 @@ it('blocks thread locking through the facade when the policy denies it', functio
         ->and(fn () => Comments::unlockThread($locked))->toThrow(UnauthorizedCommentActionException::class)
         ->and($locked->fresh()?->isLocked())->toBeTrue();
 });
+
+it('keeps a thread locked below a soft-deleted comment', function (): void {
+    config()->set('comments.max_depth', 10);
+    $post = PostTestModel::create();
+    $a = Comments::on($post)->body('A')->post();
+    $b = Comments::on($post)->reply($a)->body('B')->post();
+    $c = Comments::on($post)->reply($b)->body('C')->post();
+    Comments::lockThread($a);
+
+    Comments::delete($b);
+    $c = Comment::query()->findOrFail($c->getKey());
+
+    expect(Comments::isThreadLocked($c))->toBeTrue()
+        ->and(fn () => Comments::on($post)->reply($c)->body('D')->post())->toThrow(CommentsLockedException::class)
+        ->and(fn () => Comments::update($c, 'edited'))->toThrow(CommentsLockedException::class);
+});

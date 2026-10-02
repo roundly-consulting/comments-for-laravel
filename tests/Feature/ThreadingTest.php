@@ -5,6 +5,7 @@ declare(strict_types=1);
 use RoundlyConsulting\Comments\Actions\WriteCommentAction;
 use RoundlyConsulting\Comments\DataTransferObjects\WriteCommentData;
 use RoundlyConsulting\Comments\Exceptions\MaxReplyDepthExceededException;
+use RoundlyConsulting\Comments\Facades\Comments;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Tests\ActorTestModel;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
@@ -113,3 +114,17 @@ it('threads only public roots and public replies', function (): void {
         ->and($roots->first()->replies->pluck('comment')->all())->toBe(['public reply'])
         ->and($roots->first()->replies->first()->replies)->toBeEmpty();
 });
+
+it('counts a soft-deleted ancestor towards the reply depth', function (): void {
+    config()->set('comments.max_depth', 3);
+    $post = PostTestModel::create();
+
+    $d1 = Comments::on($post)->body('d1')->post();
+    $d2 = Comments::on($post)->reply($d1)->body('d2')->post();
+    $d3 = Comments::on($post)->reply($d2)->body('d3')->post();
+
+    Comments::delete($d2);
+    $d3 = Comment::query()->findOrFail($d3->getKey());
+
+    Comments::on($post)->reply($d3)->body('d4')->post();
+})->throws(MaxReplyDepthExceededException::class);

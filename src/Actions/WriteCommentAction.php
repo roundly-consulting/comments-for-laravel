@@ -13,6 +13,7 @@ use RoundlyConsulting\Comments\Exceptions\InvalidCommentParentException;
 use RoundlyConsulting\Comments\Exceptions\MaxReplyDepthExceededException;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Support\Blocklist;
+use RoundlyConsulting\Comments\Support\CommentAncestry;
 use RoundlyConsulting\Comments\Support\CommentAuthorizer;
 use RoundlyConsulting\Comments\Support\CommentLocks;
 use RoundlyConsulting\Comments\Support\CommentModel;
@@ -23,6 +24,7 @@ final readonly class WriteCommentAction
         private Blocklist $blocklist,
         private CommentAuthorizer $authorizer,
         private CommentLocks $locks,
+        private CommentAncestry $ancestry,
         private SyncCommentMentionsAction $syncMentions,
     ) {}
 
@@ -145,27 +147,15 @@ final readonly class WriteCommentAction
         return is_int($key) ? $key : (string) $key;
     }
 
+    /**
+     * The new comment sits one level below its parent. Soft-deleted ancestors count (see
+     * {@see CommentAncestry}), so deleting a comment mid-thread does not make room below it.
+     */
     private function guardReplyDepth(Comment $parent): void
     {
         $maxDepth = (int) config('comments.max_depth', 5);
 
-        $depth = 1;
-        $current = $parent;
-
-        while ($current->parent_id !== null) {
-            $depth++;
-
-            $loaded = $current->parent;
-
-            if (! $loaded instanceof Model) {
-                break;
-            }
-
-            $current = $loaded;
-        }
-
-        // The new comment sits one level below the parent.
-        if ($depth + 1 > $maxDepth) {
+        if ($this->ancestry->depthOf($parent) + 1 > $maxDepth) {
             throw MaxReplyDepthExceededException::make($maxDepth);
         }
     }
