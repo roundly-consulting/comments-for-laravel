@@ -22,6 +22,9 @@ use RoundlyConsulting\MediaLibrary\Variants\ResponsiveImageGenerator;
  * Every URL comes from the caller's resolver, so a private attachment is linked through a
  * short-lived signed URL and never through a public one.
  *
+ * A variant the image has not generated (the token's `|variant` is the author's to choose)
+ * renders the responsive image instead of throwing.
+ *
  * Only the generated tags are escaped: the text around the tokens is returned exactly as
  * stored (see the XSS warning on `HasCommentMedia::renderBody()`).
  */
@@ -84,7 +87,9 @@ final class CommentBodyMediaRenderer
     private function renderMedia(Media $media, string $variant, Closure $url): string
     {
         if ($media->isImage()) {
-            if ($variant !== '') {
+            // The token's variant is author input: only one actually generated for this image is
+            // served; anything else (a typo, an undeclared name) renders the responsive image.
+            if ($variant !== '' && $media->hasGeneratedVariant($variant)) {
                 return '<img src="'.e($url($media, $variant)).'" alt="'.e($media->name).'">';
             }
 

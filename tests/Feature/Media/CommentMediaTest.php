@@ -173,3 +173,43 @@ it('cascades media removal when the comment bucket is cleared', function (): voi
 
     expect($comment->fresh()->hasAttachments())->toBeFalse();
 });
+
+it('falls back to the responsive image for a variant the image lacks', function (): void {
+    [$comment, $media] = commentWithAttachment();
+
+    $comment->update(['comment' => "x [media:{$media->uuid}|bogus] y"]);
+
+    $html = (string) $comment->renderBody();
+
+    expect($html)->toContain('<img')
+        ->and($html)->toContain('srcset=')
+        ->and($html)->not->toContain('bogus');
+});
+
+it('falls back to the responsive image when the default variant was never generated', function (): void {
+    config()->set('comments.media.inline.default_variant', 'thumb');
+    [$comment, $media] = commentWithAttachment();
+
+    $comment->update(['comment' => "x [media:{$media->uuid}] y"]);
+
+    expect((string) $comment->renderBody())->toContain('srcset=');
+});
+
+it('lists a variant url only for attachments that have it, the original otherwise', function (): void {
+    [$comment, $image] = commentWithAttachment();
+    $pdf = $comment->addMedia(UploadedFile::fake()->create('brief.pdf', 12, 'application/pdf'))
+        ->toBucket($comment->attachmentsBucket());
+
+    $urls = $comment->attachmentUrls('responsive-320');
+
+    expect($urls)->toHaveCount(2)
+        ->and($urls[0])->toBe($image->getUrl('responsive-320'))
+        ->and($urls[1])->toBe($pdf->getUrl());
+});
+
+it('serves the original for a variant no attachment has', function (): void {
+    [$comment, $image] = commentWithAttachment();
+
+    expect($comment->attachmentUrls('thumb'))->toBe([$image->getUrl()])
+        ->and($comment->resolveAttachmentUrl($image, 'thumb'))->toBe($image->getUrl());
+});

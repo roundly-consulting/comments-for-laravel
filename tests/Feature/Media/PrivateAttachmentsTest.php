@@ -202,3 +202,13 @@ it('serves a private attachment from the real private disk through the signed st
         File::deleteDirectory($root);
     }
 });
+
+it('signs the original for a private attachment lacking the requested variant', function (): void {
+    [$comment, $media] = privateCommentWith(UploadedFile::fake()->image('shot.jpg', 800, 600));
+
+    $comment->update(['comment' => "x [media:{$media->uuid}|bogus] y"]);
+
+    expect((string) $comment->renderBody())->toContain('<img')
+        ->and($comment->attachmentUrl($media, 'bogus'))->toBe($comment->attachmentUrl($media))
+        ->and($comment->attachmentUrls('bogus'))->toBe([$comment->attachmentUrl($media)]);
+});
