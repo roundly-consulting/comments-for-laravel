@@ -10,6 +10,7 @@ use RoundlyConsulting\Comments\Support\CommentModel;
 use RoundlyConsulting\PackageToolkit\Concerns\RegistersBlueprintMacros;
 use RoundlyConsulting\PackageToolkit\Package;
 use RoundlyConsulting\PackageToolkit\PackageServiceProvider;
+use RoundlyConsulting\PackageToolkit\Support\Config;
 use RoundlyConsulting\Reports\Events\ReportResolved;
 use RoundlyConsulting\Reports\Events\ReportThresholdReached;
 
@@ -26,14 +27,14 @@ final class CommentsServiceProvider extends PackageServiceProvider
             ->hasTranslations()
             ->contributesToAbout(static fn (): array => [
                 'Model' => class_basename(CommentModel::class()),
-                'Require approval' => config('comments.require_approval') === true ? 'ON' : 'OFF',
+                'Require approval' => Config::boolean('comments.require_approval') ? 'ON' : 'OFF',
                 'Max length' => ((int) config('comments.max_length', 5000)).' chars',
                 'Max depth' => (string) (int) config('comments.max_depth', 5),
                 // A count, never the terms — a blocklist is moderation-sensitive.
                 'Blocklist' => self::blocklistSize() === 0 ? 'NONE' : self::blocklistSize().' term(s)',
-                'Authorization' => config('comments.authorization') === true ? 'ON' : 'OFF',
-                'Auto-moderation' => config('comments.moderation.auto_hide') === true ? 'ON' : 'OFF',
-                'Inline media' => config('comments.media.inline.enabled') === true ? 'ON' : 'OFF',
+                'Authorization' => Config::boolean('comments.authorization') ? 'ON' : 'OFF',
+                'Auto-moderation' => Config::boolean('comments.moderation.auto_hide', true) ? 'ON' : 'OFF',
+                'Inline media' => Config::boolean('comments.media.inline.enabled', true) ? 'ON' : 'OFF',
             ]);
     }
 

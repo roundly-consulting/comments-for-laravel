@@ -6,6 +6,7 @@ namespace RoundlyConsulting\Comments\Support;
 
 use Illuminate\Support\Facades\Gate;
 use RoundlyConsulting\Comments\Exceptions\UnauthorizedCommentActionException;
+use RoundlyConsulting\PackageToolkit\Support\Config;
 
 final class CommentAuthorizer
 {
@@ -19,7 +20,7 @@ final class CommentAuthorizer
      */
     public function authorize(string $ability, array $arguments = []): void
     {
-        if (! (bool) config('comments.authorization', false)) {
+        if (! Config::boolean('comments.authorization')) {
             return;
         }
 

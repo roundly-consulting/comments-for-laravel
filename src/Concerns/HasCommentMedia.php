@@ -13,6 +13,7 @@ use RoundlyConsulting\Comments\Support\CommentBodyMediaRenderer;
 use RoundlyConsulting\MediaLibrary\Buckets\MediaBucket;
 use RoundlyConsulting\MediaLibrary\Concerns\InteractsWithMedia;
 use RoundlyConsulting\MediaLibrary\Models\Media;
+use RoundlyConsulting\PackageToolkit\Support\Config;
 
 /**
  * First-class media for the bundled Comment model, built on
@@ -148,7 +149,7 @@ trait HasCommentMedia
     {
         $body = (string) $this->getAttribute('comment');
 
-        if (! (bool) config('comments.media.inline.enabled', true)) {
+        if (! Config::boolean('comments.media.inline.enabled', true)) {
             return new HtmlString($body);
         }
 

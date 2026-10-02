@@ -17,6 +17,7 @@ use RoundlyConsulting\Comments\Support\CommentAncestry;
 use RoundlyConsulting\Comments\Support\CommentAuthorizer;
 use RoundlyConsulting\Comments\Support\CommentLocks;
 use RoundlyConsulting\Comments\Support\CommentModel;
+use RoundlyConsulting\PackageToolkit\Support\Config;
 
 final readonly class WriteCommentAction
 {
@@ -88,7 +89,7 @@ final readonly class WriteCommentAction
      */
     private function resolveStatus(string $body): CommentStatus
     {
-        $default = (bool) config('comments.require_approval', false)
+        $default = Config::boolean('comments.require_approval')
             ? CommentStatus::Pending
             : CommentStatus::Approved;
 

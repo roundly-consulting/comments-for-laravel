@@ -9,6 +9,7 @@ use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Events\CommentHidden;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Support\CommentModel;
+use RoundlyConsulting\PackageToolkit\Support\Config;
 use RoundlyConsulting\Reports\Events\ReportResolved;
 use RoundlyConsulting\Reports\Events\ReportThresholdReached;
 
@@ -47,7 +48,7 @@ final class SyncCommentVisibilityFromReports
      */
     public function handleThresholdReached(ReportThresholdReached $event): void
     {
-        if (! (bool) config('comments.moderation.auto_hide', true)) {
+        if (! Config::boolean('comments.moderation.auto_hide', true)) {
             return;
         }
 

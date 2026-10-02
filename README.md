@@ -146,6 +146,10 @@ return [
 | `moderation.auto_hide` | `bool`            | `true`          | —                            | Auto-hide a comment when it crosses the global `reports.threshold` (`ReportThresholdReached`). |
 | `media`            | `array`             | see above        | `COMMENTS_MEDIA_*`           | The comment's single `attachments` bucket (disk, private disk, visibility, accepted types, max size in **bytes** — enforced on upload, responsive widths, signed-URL lifetime) plus inline `[media:UUID]` body rendering (`enabled`, `default_variant`, `on_missing`). With `disk` unset, private attachments (and their variants) go to `private_disk` (`local`), public ones to media-library's default disk. |
 
+Every `bool` switch is parsed as a boolean, so `.env` values mean what they say:
+`true`/`1`/`on`/`yes` turn it on, `false`/`0`/`off`/`no` turn it off (`COMMENTS_REQUIRE_APPROVAL=1`
+holds new comments; `COMMENTS_AUTHORIZATION=off` skips the policy).
+
 The package works with zero configuration — every key has a sensible default.
 
 ## Usage
