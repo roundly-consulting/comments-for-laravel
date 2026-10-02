@@ -13,6 +13,7 @@ use RoundlyConsulting\Comments\Tests\ModeratorTestModel;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
 use RoundlyConsulting\Reports\Enums\Status;
 use RoundlyConsulting\Reports\Events\ReportResolved;
+use RoundlyConsulting\Reports\Exceptions\ModeratorRequiredException;
 use RoundlyConsulting\Reports\Facades\Reports;
 use RoundlyConsulting\Reports\Models\Report;
 
@@ -136,6 +137,30 @@ it('hides the comment through a multi-moderator sign-off', function (): void {
 
     // Quorum reached → ReportResolved → comment hidden.
     expect($comment->fresh()->status)->toBe(CommentStatus::Hidden);
+});
+
+it('refuses an outsider deciding a multi-moderator sign-off and keeps the comment visible', function (): void {
+    $comment = approvedComment();
+
+    $report = Reports::report($comment)
+        ->by(ActorTestModel::create())
+        ->for('spam')
+        ->create();
+
+    $alice = ModeratorTestModel::create();
+    $bob = ModeratorTestModel::create();
+    $mallory = ModeratorTestModel::create();
+
+    Reports::moderate($report)
+        ->requiring([$alice, $bob])
+        ->rule(ApprovalRule::Any)
+        ->open();
+
+    expect(fn () => Reports::resolve($report, by: $mallory))
+        ->toThrow(ModeratorRequiredException::class);
+
+    expect($comment->fresh()->status)->toBe(CommentStatus::Approved)
+        ->and($report->fresh()->status)->not->toBe(Status::Resolved);
 });
 
 it('ignores a report whose subject is missing', function (): void {

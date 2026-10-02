@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Storage;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
 use RoundlyConsulting\MediaLibrary\Contracts\HasMedia;
+use RoundlyConsulting\MediaLibrary\Exceptions\FileUnacceptableForBucket;
 use RoundlyConsulting\MediaLibrary\Facades\MediaLibrary;
 
 beforeEach(function (): void {
@@ -135,7 +136,7 @@ it('honours an explicit variant in the inline url', function (): void {
 
 it('applies the configured bucket constraints', function (): void {
     config()->set('comments.media.accepted_mime_types', ['image/jpeg']);
-    config()->set('comments.media.max_file_size', 2048);
+    config()->set('comments.media.max_file_size', 1024 * 1024);
     config()->set('comments.media.disk', 'public');
     config()->set('comments.media.responsive_widths', [200, 400]);
 
@@ -144,6 +145,18 @@ it('applies the configured bucket constraints', function (): void {
     expect($comment->hasAttachments())->toBeTrue()
         ->and($media->disk)->toBe('public');
 });
+
+it('refuses an attachment over the configured size limit', function (): void {
+    config()->set('comments.media.max_file_size', 2048);
+
+    commentWithAttachment();
+})->throws(FileUnacceptableForBucket::class);
+
+it('refuses an attachment outside the accepted mime types', function (): void {
+    config()->set('comments.media.accepted_mime_types', ['application/pdf']);
+
+    commentWithAttachment();
+})->throws(FileUnacceptableForBucket::class);
 
 it('leaves malformed tokens untouched', function (): void {
     $comment = Comment::factory()->for(PostTestModel::create(), 'commentable')->create();
