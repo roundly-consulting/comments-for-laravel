@@ -97,3 +97,19 @@ it('builds a collection', function (): void {
 
     expect($collection->toArray(Request::create('/')))->toHaveCount(2);
 });
+
+it('serialises the README thread without hidden or pending comments', function (): void {
+    $post = PostTestModel::create();
+    $root = Comment::factory()->for($post, 'commentable')->create(['comment' => 'root']);
+    Comment::factory()->reply($root)->create(['comment' => 'public reply']);
+    Comment::factory()->reply($root)->hidden()->create(['comment' => 'SPAM reply']);
+    Comment::factory()->for($post, 'commentable')->hidden()->create(['comment' => 'hidden root']);
+
+    $json = CommentResource::collection(
+        $post->threadedComments()->with(['actor', 'likes', 'media'])->get(),
+    )->response()->getContent();
+
+    expect($json)->toContain('public reply')
+        ->not->toContain('SPAM reply')
+        ->not->toContain('hidden root');
+});

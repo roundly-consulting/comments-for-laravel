@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Support\CommentModel;
+use RoundlyConsulting\Comments\Support\RepliesEagerLoad;
 
 /**
  * A fluent read/moderation side mirroring the write builder. Start it site-wide
@@ -25,6 +26,10 @@ final class CommentQuery
 {
     /** @var Builder<Comment> */
     private Builder $query;
+
+    private bool $withReplies = false;
+
+    private bool $publicOnly = false;
 
     public function __construct(
         private readonly CommentsManager $manager,
@@ -71,11 +76,16 @@ final class CommentQuery
         return $this;
     }
 
+    /**
+     * Only what the public sees: `visible` AND approved. With {@see self::withReplies()} (in
+     * either order) the loaded replies follow the same rule at every level.
+     */
     public function visible(): self
     {
         $this->query->where('visible', true)->where('status', CommentStatus::Approved);
+        $this->publicOnly = true;
 
-        return $this;
+        return $this->loadReplies();
     }
 
     public function rootsOnly(): self
@@ -85,13 +95,25 @@ final class CommentQuery
         return $this;
     }
 
+    /**
+     * Eager-load nested replies, bounded by `comments.max_depth`. On a {@see self::visible()}
+     * query only public replies load (a hidden/pending/invisible reply and everything below it
+     * are left out); without it every reply loads, for a moderation view.
+     */
     public function withReplies(): self
     {
-        $maxDepth = (int) config('comments.max_depth', 5);
-        $levels = max(0, $maxDepth - 1);
-        $eager = rtrim(str_repeat('replies.', $levels), '.') ?: 'replies';
+        $this->withReplies = true;
 
-        $this->query->with($eager);
+        return $this->loadReplies();
+    }
+
+    private function loadReplies(): self
+    {
+        if ($this->withReplies) {
+            // Re-registering the `replies` key replaces the earlier constraint, so the
+            // visibility rule holds whichever of visible() / withReplies() ran first.
+            $this->query->with(RepliesEagerLoad::make($this->publicOnly));
+        }
 
         return $this;
     }

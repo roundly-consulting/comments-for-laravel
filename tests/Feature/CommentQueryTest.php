@@ -60,6 +60,70 @@ it('eager loads replies', function (): void {
     expect($roots->first()->relationLoaded('replies'))->toBeTrue();
 });
 
+/**
+ * A public root with an approved reply, a hidden reply, a pending reply, an invisible reply, and
+ * an approved reply nested under the hidden one.
+ */
+function moderatedThread(PostTestModel $post): Comment
+{
+    $root = Comment::factory()->for($post, 'commentable')->create(['comment' => 'root']);
+    $reply = Comment::factory()->reply($root)->create(['comment' => 'public reply']);
+    Comment::factory()->reply($reply)->create(['comment' => 'public grandchild']);
+    Comment::factory()->reply($reply)->hidden()->create(['comment' => 'hidden grandchild']);
+    $hidden = Comment::factory()->reply($root)->hidden()->create(['comment' => 'SPAM reply']);
+    Comment::factory()->reply($root)->pending()->create(['comment' => 'unmoderated reply']);
+    Comment::factory()->reply($root)->create(['comment' => 'internal note', 'visible' => false]);
+    Comment::factory()->reply($hidden)->create(['comment' => 'under the spam']);
+
+    return $root;
+}
+
+/**
+ * @param  iterable<Comment>  $comments
+ * @return list<string>
+ */
+function loadedBodies(iterable $comments): array
+{
+    $bodies = [];
+
+    foreach ($comments as $comment) {
+        $bodies[] = $comment->comment;
+
+        if ($comment->relationLoaded('replies')) {
+            array_push($bodies, ...loadedBodies($comment->replies));
+        }
+    }
+
+    return $bodies;
+}
+
+it('loads only public replies under a visible() query', function (): void {
+    $post = PostTestModel::create();
+    moderatedThread($post);
+
+    $roots = Comments::for($post)->visible()->rootsOnly()->withReplies()->get();
+
+    expect(loadedBodies($roots))->toEqualCanonicalizing(['root', 'public reply', 'public grandchild']);
+});
+
+it('loads only public replies whichever of visible() and withReplies() comes first', function (): void {
+    $post = PostTestModel::create();
+    moderatedThread($post);
+
+    $roots = Comments::for($post)->withReplies()->rootsOnly()->visible()->get();
+
+    expect(loadedBodies($roots))->toEqualCanonicalizing(['root', 'public reply', 'public grandchild']);
+});
+
+it('loads every reply for a moderation query without visible()', function (): void {
+    $post = PostTestModel::create();
+    moderatedThread($post);
+
+    $roots = Comments::for($post)->rootsOnly()->withReplies()->get();
+
+    expect(loadedBodies($roots))->toHaveCount(8);
+});
+
 it('paginates', function (): void {
     $post = PostTestModel::create();
     Comment::factory()->for($post, 'commentable')->count(3)->create();

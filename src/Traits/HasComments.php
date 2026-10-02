@@ -10,6 +10,7 @@ use RoundlyConsulting\Comments\CommentsManager;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Support\CommentModel;
+use RoundlyConsulting\Comments\Support\RepliesEagerLoad;
 
 trait HasComments
 {
@@ -36,18 +37,20 @@ trait HasComments
     }
 
     /**
-     * Eager-load replies for the subject's top-level comments, bounded by
-     * `comments.max_depth` so very deep threads stay fast.
+     * The public thread: visible + approved top-level comments with their visible + approved
+     * replies eager-loaded, bounded by `comments.max_depth`. A hidden, pending or
+     * `visible = false` comment never loads, and neither does anything below it — for a
+     * moderation view of every reply use `Comments::for($subject)->rootsOnly()->withReplies()`.
      *
      * @return MorphMany<Comment, $this>
      */
     public function threadedComments(): MorphMany
     {
-        $maxDepth = (int) config('comments.max_depth', 5);
-
         return $this->comments()
             ->whereNull('parent_id')
-            ->with($this->buildRepliesEagerLoad($maxDepth));
+            ->where('visible', true)
+            ->where('status', CommentStatus::Approved)
+            ->with(RepliesEagerLoad::make(publicOnly: true));
     }
 
     /**
@@ -86,13 +89,5 @@ trait HasComments
     public function commentsLocked(): bool
     {
         return app(CommentsManager::class)->isLocked($this);
-    }
-
-    private function buildRepliesEagerLoad(int $maxDepth): string
-    {
-        // A top-level comment is depth 1, so the eager-load nests max_depth - 1 reply levels.
-        $levels = max(0, $maxDepth - 1);
-
-        return rtrim(str_repeat('replies.', $levels), '.') ?: 'replies';
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 use RoundlyConsulting\Comments\Actions\WriteCommentAction;
 use RoundlyConsulting\Comments\DataTransferObjects\WriteCommentData;
 use RoundlyConsulting\Comments\Exceptions\MaxReplyDepthExceededException;
+use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Tests\ActorTestModel;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
 
@@ -93,4 +94,22 @@ it('bounds the threaded eager-load to max depth', function (): void {
     }
 
     expect($loadedDepth)->toBe(5);
+});
+
+it('threads only public roots and public replies', function (): void {
+    $post = PostTestModel::create();
+    $root = Comment::factory()->for($post, 'commentable')->create(['comment' => 'root']);
+    $reply = Comment::factory()->reply($root)->create(['comment' => 'public reply']);
+    Comment::factory()->reply($reply)->pending()->create(['comment' => 'pending grandchild']);
+    Comment::factory()->reply($root)->hidden()->create(['comment' => 'SPAM reply']);
+    Comment::factory()->reply($root)->create(['comment' => 'internal note', 'visible' => false]);
+    Comment::factory()->for($post, 'commentable')->hidden()->create(['comment' => 'hidden root']);
+    Comment::factory()->for($post, 'commentable')->pending()->create(['comment' => 'pending root']);
+    Comment::factory()->for($post, 'commentable')->create(['comment' => 'invisible root', 'visible' => false]);
+
+    $roots = $post->threadedComments()->get();
+
+    expect($roots->pluck('comment')->all())->toBe(['root'])
+        ->and($roots->first()->replies->pluck('comment')->all())->toBe(['public reply'])
+        ->and($roots->first()->replies->first()->replies)->toBeEmpty();
 });
