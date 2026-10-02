@@ -136,15 +136,15 @@ return [
 | `key_type`         | `string`            | `bigint`         | `COMMENTS_KEY_TYPE`          | Key type of every polymorphic id column (commentable, actor, mentionable, lockable) — `bigint`, `uuid` or `ulid`. Set it to match your models' primary keys before migrating; keys are stored and read back as-is. |
 | `require_approval` | `bool`              | `false`          | `COMMENTS_REQUIRE_APPROVAL`  | When `true`, new comments start as `pending` and must be approved before they count as visible. When `false`, comments are approved immediately. |
 | `max_length`       | `int`               | `5000`           | `COMMENTS_MAX_LENGTH`        | Maximum characters allowed in a comment body. A longer body throws `InvalidCommentBodyException`. |
-| `max_depth`        | `int`               | `5`              | `COMMENTS_MAX_DEPTH`         | Maximum nesting depth for replies (a top-level comment is depth 1). Replying deeper throws `MaxReplyDepthExceededException`, and threaded eager-loading is bounded to this depth. |
+| `max_depth`        | `int`               | `5`              | `COMMENTS_MAX_DEPTH`         | Maximum nesting depth for replies (a top-level comment is depth 1). Replying deeper throws `MaxReplyDepthExceededException` — soft-deleted ancestors still count — and threaded eager-loading is bounded to this depth. |
 | `order`            | `string`            | `latest`         | `COMMENTS_ORDER`             | Default ordering for reading helpers — `latest` (newest first) or `oldest`. |
 | `blocklist`        | `list<string>`      | `[]`             | —                            | Banned words or regexes. Plain strings match case-insensitively as whole words; delimited entries (e.g. `/badword/i`) are treated as patterns. |
-| `blocklist_action` | `string`            | `reject`         | `COMMENTS_BLOCKLIST_ACTION`  | What to do on a match: `reject` (throw `CommentRejectedException`), `pending`, or `hidden`. |
-| `mention_resolver` | `callable\|null`    | `null`           | —                            | Resolves a parsed `@handle` to an Eloquent model (or `null`). Handles are always stored; resolved ones link to the model and fire `CommentMentioned` (on an edit, only for newly mentioned people). |
+| `blocklist_action` | `string`            | `reject`         | `COMMENTS_BLOCKLIST_ACTION`  | What to do on a match, on write **and** edit: `reject` (throw `CommentRejectedException`), `pending`, or `hidden`. |
+| `mention_resolver` | `class-string\|array\|null` | `null`  | —                            | Resolves a parsed `@handle` to an Eloquent model (or `null`): an invokable class-string or a `[Class::class, 'method']` pair, built through the container — never a closure, which `php artisan config:cache` cannot store. Handles are always stored; resolved ones link to the model and fire `CommentMentioned` once the comment is approved (see [@mentions](#mentions)). |
 | `authorization`    | `bool`              | `false`          | `COMMENTS_AUTHORIZATION`     | When `true`, every mutation (create, update, delete, restore, moderate, lock, unlock) consults the `Comment` policy. Off by default so existing behaviour is unchanged. |
 | `moderation.on_resolved` | `string\|null` | `hide`         | —                            | Auto-hide a comment when a report against it is upheld (`ReportResolved`). `hide` or `null` to disable. |
 | `moderation.auto_hide` | `bool`            | `true`          | —                            | Auto-hide a comment when it crosses the global `reports.threshold` (`ReportThresholdReached`). |
-| `media`            | `array`             | see above        | `COMMENTS_MEDIA_*`           | The comment's single `attachments` bucket (disk, private disk, visibility, accepted types, size, responsive widths, signed-URL lifetime) plus inline `[media:UUID]` body rendering (`enabled`, `default_variant`, `on_missing`). With `disk` unset, private attachments (and their variants) go to `private_disk` (`local`), public ones to media-library's default disk. |
+| `media`            | `array`             | see above        | `COMMENTS_MEDIA_*`           | The comment's single `attachments` bucket (disk, private disk, visibility, accepted types, max size in **bytes** — enforced on upload, responsive widths, signed-URL lifetime) plus inline `[media:UUID]` body rendering (`enabled`, `default_variant`, `on_missing`). With `disk` unset, private attachments (and their variants) go to `private_disk` (`local`), public ones to media-library's default disk. |
 
 The package works with zero configuration — every key has a sensible default.
 
@@ -293,16 +293,22 @@ Comment::roots()->get();    // top-level comments only
 ### Threaded replies
 
 Replies are stored with both their root subject (so flat listings still work) and a
-`parent_id` link to the comment they answer. Depth is bounded by `comments.max_depth`. A reply
-is written on the same subject as its parent: `Comments::on($otherPost)->reply($comment)`
-throws `InvalidCommentParentException` rather than moving the reply to the parent's subject.
+`parent_id` link to the comment they answer. Depth is bounded by `comments.max_depth`, and a
+soft-deleted ancestor still counts towards it. A reply is written on the same subject as its
+parent: `Comments::on($otherPost)->reply($comment)` throws `InvalidCommentParentException`
+rather than moving the reply to the parent's subject.
 
 ```php
-// Direct children of a comment:
+// Direct children of a comment (every status — filter before showing them publicly):
 $comment->replies;
 
-// Top-level comments with their nested replies eager-loaded (bounded by max_depth):
+// The public thread: visible + approved top-level comments, with only visible + approved
+// replies eager-loaded (bounded by max_depth). A hidden, pending or visible(false) comment
+// never loads, and neither does anything below it:
 $post->threadedComments()->get();
+
+// Every root with every reply, for a moderation view:
+Comments::for($post)->rootsOnly()->withReplies()->get();
 
 // Only top-level comments:
 $post->comments()->whereNull('parent_id')->get();
@@ -330,7 +336,7 @@ carrying the comment on its `$comment` property:
 - `CommentApproved`
 - `CommentHidden` (also dispatched by the auto-hide moderation listener)
 - `CommentThreadLocked` / `CommentThreadUnlocked`
-- `CommentMentioned` (`$event->mention`)
+- `CommentMentioned` (`$event->mention`) — only for approved comments, once per person
 
 ```php
 use RoundlyConsulting\Comments\Events\CommentCreated;
@@ -397,13 +403,25 @@ When a report is **upheld** (`ReportResolved`) or a comment crosses the global
 auto-hides the comment (status → `Hidden`, re-emitting `CommentHidden`) — config-gated by
 `comments.moderation`, guarded against non-comment subjects, and idempotent. Because reports
 routes resolution through [`approvals-for-laravel`](https://github.com/roundly-consulting/approvals-for-laravel),
-you get **multi-moderator sign-off** for free:
+you get **multi-moderator sign-off** for free.
+
+Moderators are saved Eloquent models — typically your `User` with the approvals
+`GivesApprovals` trait (`implements GivesApprovalsInterface`), which adds its
+`givenApprovals()` relation:
 
 ```php
+use RoundlyConsulting\Approvals\Enums\ApprovalRule;
+use RoundlyConsulting\Reports\Exceptions\ModeratorRequiredException;
+
 Reports::moderate($report)->requiring([$alice, $bob])->rule(ApprovalRule::Quorum)->quorum(2)->open();
 Reports::resolve($report, by: $alice);           // 1/2 — comment stays visible
+Reports::resolve($report, by: $mallory);         // not named → ModeratorRequiredException, nothing recorded
 Reports::resolve($report, by: $bob);             // quorum reached → comment hidden
 ```
+
+Only the moderators named in `requiring([...])` (or an approvals delegate of one) can decide
+while the request is open; anyone else — and a call without `by:` — is refused with reports'
+`ModeratorRequiredException`. See the reports README for the rules and refusals.
 
 ### Media attachments & inline media
 
@@ -415,10 +433,22 @@ passthrough originals and served through signed streaming.
 $comment->addMedia($request->file('file'))->toBucket($comment->attachmentsBucket());
 
 $comment->attachments();                // Collection<Media>
-$comment->attachmentUrls('thumb');      // list<string>, each resolved by its visibility
+$comment->attachmentUrls();             // list<string>, each resolved by its visibility
+$comment->attachmentUrls('responsive-320'); // that variant where generated, else the original
 $comment->resolveAttachmentUrl($media); // public URL if public, signed short-lived URL if private
 $comment->attachmentUrl($media);        // always a signed, short-lived URL
 ```
+
+Image attachments get one generated variant per responsive width, named `responsive-<width>`
+(`comments.media.responsive_widths`, else media-library's `media.responsive.widths` ladder —
+`320, 640, 960, 1280, 1920` out of the box; only widths an image can fill are generated). A
+variant an attachment does not have — every non-image, or a name the bucket never generates —
+falls back to the original file, so `attachmentUrls($variant)` over mixed attachments never
+throws.
+
+Uploads are checked against the bucket on the way in: `comments.media.accepted_mime_types` and
+`comments.media.max_file_size` (bytes) make media-library refuse a file with
+`FileUnacceptableForBucket`.
 
 Attachments are **private by default** (`comments.media.visibility`). A private attachment is
 only ever linked through a short-lived signed URL — `attachmentUrls()`, inline media in
@@ -434,7 +464,8 @@ attachment, so keep it non-public while attachments are private.
 
 Embed inline images GitHub/Reddit-style with `[media:UUID]` / `[media:UUID|variant]` tokens in
 the body — resolved only against the comment's own bucket, in a single batched query, never
-throwing on a missing UUID:
+throwing on a missing UUID or on a `|variant` the image lacks (that renders the responsive
+`<img>` instead):
 
 ```php
 $comment->update(['comment' => "see this [media:{$media->uuid}] 👀"]);
@@ -458,19 +489,42 @@ echo $comment->renderBody(); // HtmlString: responsive <img> for images, <a> for
 
 ### @mentions
 
-Comment bodies are scanned for `@handle` tokens on write and edit. Handles are always stored;
-set a resolver to link them to models and fire `CommentMentioned`. An edit only fires it for
-people the comment did not already mention — handles still in the body keep their rows, removed
-ones are deleted, and re-mentioning the same person (even under another handle) is not a new
-mention.
+Comment bodies are scanned for `@handle` tokens on write and edit. A handle may contain `.` and
+`-` (`@john.doe`) but ends on a letter, digit or underscore, so "thanks @alice." mentions
+`alice`. Handles are always stored; set a resolver to link them to models and fire
+`CommentMentioned`.
+
+`CommentMentioned` fires only for an **approved** comment, once per person: a comment the
+moderation layer holds back (`require_approval`, a blocklist `pending`/`hidden` match, a
+moderator's hide) notifies nobody until `Comments::approve()` — then each resolved mention fires
+once. An edit only fires it for people the comment has not notified yet — handles still in the
+body keep their rows, removed ones are deleted, and re-mentioning the same person (even under
+another handle) is not a new mention.
+
+The resolver is a class, not a closure — `php artisan config:cache` cannot store a closure:
 
 ```php
-// config/comments.php
-'mention_resolver' => fn (string $handle) => \App\Models\User::where('username', $handle)->first(),
+// app/Mentions/ResolveMention.php
+namespace App\Mentions;
+
+use App\Models\User;
+
+final class ResolveMention
+{
+    public function __invoke(string $handle): ?User
+    {
+        return User::where('username', $handle)->first();
+    }
+}
+
+// config/comments.php — an invokable class, or [ResolveMention::class, 'someMethod']
+'mention_resolver' => \App\Mentions\ResolveMention::class,
 
 $comment = Comments::on($post)->body('thanks @alice!')->post();
 $comment->mentions; // CommentMention rows (handle + optional mentionable)
 ```
+
+The resolver is built through the container, so it may take constructor dependencies.
 
 ### Spam / blocklist filter
 
@@ -483,7 +537,10 @@ Configure banned words or regexes and how a match is handled:
 ```
 
 With `reject`, a matching comment throws `CommentRejectedException`; with `pending`/`hidden`
-it is stored in that status instead.
+it is stored in that status instead. Edits run the same filter, so a comment posted clean
+cannot be edited into spam and stay public: a blocklisted edit is rejected, or moves the comment
+to `pending`/`hidden` (an edit only ever tightens the status — it never lifts a hidden comment
+to pending, and a clean edit leaves a held comment for a moderator to approve).
 
 ### Locking threads
 
@@ -504,7 +561,8 @@ $comment->unlockReplies();          // same as Comments::unlockThread($comment)
 $comment->isLocked();               // bool — this comment's own thread lock only
 ```
 
-A thread lock covers the whole subtree: a reply to a reply is still in the thread. Locking
+A thread lock covers the whole subtree: a reply to a reply is still in the thread, and
+soft-deleting a comment inside a locked thread keeps everything below it locked. Locking
 fires `CommentThreadLocked`, unlocking `CommentThreadUnlocked` — only when the state actually
 changes. Writing or editing against a lock throws `CommentsLockedException`.
 
@@ -516,7 +574,7 @@ A fluent read side mirrors the write builder, with moderation, ordering, and pag
 use RoundlyConsulting\Comments\Facades\Comments;
 
 Comments::for($post)->approved()->newest()->paginate(20);
-Comments::for($post)->visible()->rootsOnly()->withReplies()->get();
+Comments::for($post)->visible()->rootsOnly()->withReplies()->get(); // public replies only
 Comments::for($post)->pending()->count();
 Comments::byAuthor($user)->get();
 Comments::query()->hidden()->newest()->get();   // site-wide, every subject
@@ -528,13 +586,21 @@ Comments::byAuthor($user)->hideAll();
 Comments::for($post)->deleteAll();
 ```
 
+`withReplies()` follows the query's visibility: on a `visible()` query (in either order) only
+visible + approved replies load, at every level; without `visible()` every reply loads, for a
+moderation view.
+
 ### Comment counts
 
 ```php
-$post->loadCommentCount();        // sets $post->comments_count (approved comments)
+$post->loadCommentCount();        // sets $post->comments_count
 
 Post::withCommentCounts()->get(); // adds comments_count without N+1
 ```
+
+`comments_count` is what the public sees: every visible + approved comment on the subject,
+replies included — the same rows as `Comment::visible()`. Pending, hidden and `visible(false)`
+comments are never counted.
 
 ### Authorization
 
@@ -602,6 +668,11 @@ return CommentResource::collection(
 );
 ```
 
+`threadedComments()` is the public thread, so the JSON holds only visible + approved roots and
+replies. The resource renders whatever it is given — the `replies` key is any loaded `replies`
+relation — so feed it a public query (`threadedComments()`, or a `visible()` `CommentQuery`
+with `withReplies()`) on public endpoints.
+
 The `likes` block (`count` / `viewer_state` / `breakdown`) is rendered only when the `likes`
 relation is loaded, and `attachments` only when `media` is loaded.
 
@@ -648,13 +719,15 @@ without a user, so it bypasses the manager and is not recorded — assert `Comme
 
 ### Testing helpers
 
-The factory ships states (`pending()`, `hidden()`, `locked()`, `reply($parent)`,
-`by($user)`), and the `AssertsComments` trait adds database expectations for host-app tests:
+The factory ships states (`on($subject)`, `pending()`, `hidden()`, `locked()`,
+`reply($parent)`, `by($user)`), and the `AssertsComments` trait adds database expectations for
+host-app tests. A comment needs a subject, so every factory comment takes `on($subject)` or
+`reply($parent)` (or `for($subject, 'commentable')`):
 
 ```php
 use RoundlyConsulting\Comments\Testing\AssertsComments;
 
-Comment::factory()->pending()->create();
+Comment::factory()->on($post)->pending()->create();
 Comment::factory()->reply($root)->by($user)->create();
 
 // In a test case using AssertsComments:

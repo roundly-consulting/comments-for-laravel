@@ -120,13 +120,14 @@ return [
     | Mention Resolver
     |--------------------------------------------------------------------------
     |
-    | A callable that resolves a parsed "@handle" token to an Eloquent model
-    | (or null). Set it to a callable or an [class, method] array. Handles are
-    | always stored; when the resolver returns a model the mention is linked to
-    | it and a CommentMentioned event is dispatched. Leave null to only store
-    | the raw handles.
+    | Resolves a parsed "@handle" token to an Eloquent model (or null): an
+    | invokable class-string, or a [Class::class, 'method'] pair — both built
+    | through the container. Never a closure: `php artisan config:cache` cannot
+    | store one. Handles are always stored; when the resolver returns a model
+    | the mention is linked to it, and CommentMentioned fires once the comment
+    | is approved. Leave null to only store the raw handles.
     |
-    | @var callable|array{0: class-string, 1: string}|null
+    | @var class-string|array{0: class-string, 1: string}|null
     |
     */
 
@@ -208,7 +209,8 @@ return [
         // Whitelist of accepted mime types. [] => accept any type.
         'accepted_mime_types' => [],
 
-        // Max attachment size in KB. null => the media-library default.
+        // Max attachment size in BYTES, enforced on upload (media-library throws
+        // FileUnacceptableForBucket). null => media-library's media.max_file_size.
         'max_file_size' => null,
 
         // Responsive width ladder for image attachments.
