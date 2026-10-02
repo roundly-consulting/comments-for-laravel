@@ -6,7 +6,7 @@ namespace RoundlyConsulting\Comments\Actions;
 
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
-use RoundlyConsulting\Comments\Events\CommentMentioned;
+use Illuminate\Support\Carbon;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Models\CommentMention;
 
@@ -18,22 +18,29 @@ use RoundlyConsulting\Comments\Models\CommentMention;
  */
 final readonly class SyncCommentMentionsAction
 {
+    public function __construct(
+        private NotifyCommentMentionsAction $notify,
+    ) {}
+
     /**
      * Parse "@handle" tokens from the comment body and sync them against the stored
      * mentions: rows for handles still present are kept as they are, rows for dropped
      * handles are deleted, and new handles are stored and resolved via the configured
-     * resolver. CommentMentioned fires only for a new handle that resolves to someone
-     * this comment did not already mention — so editing a comment never re-notifies
-     * the people it already mentioned (even under a different handle).
+     * resolver. Notifying is {@see NotifyCommentMentionsAction}'s: CommentMentioned fires
+     * once per person, and only while the comment is approved — so editing a comment never
+     * re-notifies the people it already notified (even under a different handle).
      */
     public function execute(Comment $comment): void
     {
         /** @var Collection<int, CommentMention> $existing */
         $existing = $comment->mentions()->get();
 
-        $alreadyMentioned = $existing
-            ->filter(fn (CommentMention $mention): bool => $mention->mentionable_id !== null)
-            ->map(fn (CommentMention $mention): string => $this->identity($mention->mentionable_type, $mention->mentionable_id))
+        // Read before the dropped rows go: a person re-mentioned under another handle keeps
+        // the notification they already had.
+        $notified = $existing
+            ->filter(fn (CommentMention $mention): bool => $mention->notified_at !== null)
+            ->map(fn (CommentMention $mention): ?string => $mention->mentionedIdentity())
+            ->filter()
             ->all();
 
         $handles = $this->parse($comment->comment);
@@ -51,29 +58,22 @@ final readonly class SyncCommentMentionsAction
 
             $mentionable = $this->resolve($handle);
 
-            $mention = $comment->mentions()->create([
+            $mention = $comment->mentions()->make([
                 'handle' => $handle,
                 'mentionable_id' => $mentionable?->getKey(),
                 'mentionable_type' => $mentionable?->getMorphClass(),
             ]);
 
-            if (! $mentionable instanceof Model) {
-                continue;
+            $identity = $mention->mentionedIdentity();
+
+            if ($identity !== null && in_array($identity, $notified, true)) {
+                $mention->notified_at = Carbon::now();
             }
 
-            $identity = $this->identity($mentionable->getMorphClass(), $mentionable->getKey());
-
-            if (! in_array($identity, $alreadyMentioned, true)) {
-                $alreadyMentioned[] = $identity;
-
-                CommentMentioned::dispatch($mention);
-            }
+            $mention->save();
         }
-    }
 
-    private function identity(?string $type, mixed $key): string
-    {
-        return $type.'|'.(is_scalar($key) ? (string) $key : '');
+        $this->notify->execute($comment);
     }
 
     /**

@@ -33,6 +33,7 @@ return new class extends Migration
             $table->foreignId('comment_id')->index();
             $table->string('handle');
             $table->morphKey('mentionable', $keyType, nullable: true);
+            $table->timestamp('notified_at')->nullable();
             $table->timestamps();
 
             $table->index(['comment_id', 'handle']);

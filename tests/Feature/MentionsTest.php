@@ -2,9 +2,13 @@
 
 declare(strict_types=1);
 
+use Illuminate\Database\Events\QueryExecuted;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
+use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Events\CommentMentioned;
 use RoundlyConsulting\Comments\Facades\Comments;
+use RoundlyConsulting\Comments\Models\CommentMention;
 use RoundlyConsulting\Comments\Tests\ActorTestModel;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
 
@@ -122,4 +126,83 @@ it('keeps dots inside a handle but trims trailing punctuation', function (): voi
     $comment = Comments::on(PostTestModel::create())->body('ping @john.doe, @jane- and @bob_99...')->post();
 
     expect($comment->mentions()->pluck('handle')->all())->toEqualCanonicalizing(['john.doe', 'jane', 'bob_99']);
+});
+
+it('does not notify for a comment the blocklist hid', function (): void {
+    Event::fake([CommentMentioned::class]);
+    config()->set('comments.blocklist', ['casino']);
+    config()->set('comments.blocklist_action', 'hidden');
+    $alice = ActorTestModel::create();
+    config()->set('comments.mention_resolver', fn (string $handle): ?ActorTestModel => $handle === 'alice' ? $alice : null);
+
+    $comment = Comments::on(PostTestModel::create())->body('@alice casino bonus')->post();
+
+    expect($comment->status)->toBe(CommentStatus::Hidden)
+        ->and($comment->mentions()->sole()->mentionable?->is($alice))->toBeTrue();
+    Event::assertNotDispatched(CommentMentioned::class);
+});
+
+it('notifies a held comment\'s mentions once, when it is approved', function (): void {
+    Event::fake([CommentMentioned::class]);
+    config()->set('comments.require_approval', true);
+    $alice = ActorTestModel::create();
+    $bob = ActorTestModel::create();
+    config()->set('comments.mention_resolver', fn (string $handle): ?ActorTestModel => match ($handle) {
+        'alice' => $alice,
+        'bob' => $bob,
+        default => null,
+    });
+
+    $comment = Comments::on(PostTestModel::create())->body('hi @alice')->post();
+    Comments::update($comment, 'hi @alice and @bob');
+
+    Event::assertNotDispatched(CommentMentioned::class);
+
+    Comments::approve($comment);
+
+    Event::assertDispatchedTimes(CommentMentioned::class, 2);
+
+    Comments::hide($comment);
+    Comments::approve($comment);
+    Comments::update($comment, 'hi @alice and @bob again');
+
+    Event::assertDispatchedTimes(CommentMentioned::class, 2);
+});
+
+it('does not re-notify someone re-mentioned under another handle after approval', function (): void {
+    $alice = ActorTestModel::create();
+    config()->set('comments.mention_resolver', fn (string $handle): ?ActorTestModel => strtolower($handle) === 'alice' ? $alice : null);
+
+    $comment = Comments::on(PostTestModel::create())->body('hi @alice')->post();
+    Comments::update($comment, 'hi @Alice');
+
+    Event::fake([CommentMentioned::class]);
+
+    Comments::hide($comment);
+    Comments::approve($comment);
+
+    Event::assertNotDispatched(CommentMentioned::class);
+});
+
+it('notifies nobody when a concurrent approval already claimed the mention', function (): void {
+    config()->set('comments.require_approval', true);
+    $alice = ActorTestModel::create();
+    config()->set('comments.mention_resolver', fn (string $handle): ?ActorTestModel => $handle === 'alice' ? $alice : null);
+    $comment = Comments::on(PostTestModel::create())->body('hi @alice')->post();
+
+    Event::fake([CommentMentioned::class]);
+
+    // Another worker stamps the row right after this approval read it.
+    $raced = false;
+    DB::listen(function (QueryExecuted $query) use (&$raced): void {
+        if (! $raced && str_contains($query->sql, 'comment_mentions') && str_contains($query->sql, 'is not null')) {
+            $raced = true;
+            CommentMention::query()->update(['notified_at' => now()]);
+        }
+    });
+
+    Comments::approve($comment);
+
+    expect($raced)->toBeTrue();
+    Event::assertNotDispatched(CommentMentioned::class);
 });

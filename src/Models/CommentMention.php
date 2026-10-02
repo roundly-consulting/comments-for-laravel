@@ -17,6 +17,7 @@ use RoundlyConsulting\Comments\Database\Factories\CommentMentionFactory;
  * @property string $handle
  * @property int|string|null $mentionable_id
  * @property string|null $mentionable_type
+ * @property CarbonInterface|null $notified_at
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
  * @property-read Comment $comment
@@ -39,6 +40,29 @@ class CommentMention extends Model
     public function mentionable(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    /**
+     * Who this mention points at (`type|key`), so two handles resolving to the same person count
+     * as one mention; null for a handle that resolved to no one.
+     */
+    public function mentionedIdentity(): ?string
+    {
+        $key = $this->mentionable_id;
+
+        if ($this->mentionable_type === null || ! is_scalar($key)) {
+            return null;
+        }
+
+        return $this->mentionable_type.'|'.$key;
+    }
+
+    /** @return array<string, string> */
+    protected function casts(): array
+    {
+        return [
+            'notified_at' => 'datetime',
+        ];
     }
 
     protected static function newFactory(): CommentMentionFactory

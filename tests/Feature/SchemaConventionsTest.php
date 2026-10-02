@@ -34,6 +34,7 @@ it('emits the comment_mentions and comment_locks columns', function (): void {
         'handle',
         'mentionable_type',
         'mentionable_id',
+        'notified_at',
         'created_at',
         'updated_at',
     ]);

@@ -13,8 +13,13 @@ final readonly class ApproveCommentAction
 {
     public function __construct(
         private CommentAuthorizer $authorizer,
+        private NotifyCommentMentionsAction $notifyMentions,
     ) {}
 
+    /**
+     * Approve the comment. Mentions it held back while pending/hidden notify now — each person
+     * once, however often the comment is hidden and approved again.
+     */
     public function execute(Comment $comment): Comment
     {
         $this->authorizer->authorize('moderate', [$comment]);
@@ -22,6 +27,8 @@ final readonly class ApproveCommentAction
         $comment->update(['status' => CommentStatus::Approved]);
 
         CommentApproved::dispatch($comment);
+
+        $this->notifyMentions->execute($comment);
 
         return $comment;
     }
