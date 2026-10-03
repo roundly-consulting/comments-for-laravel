@@ -232,9 +232,17 @@ it('refuses a resolver that is not callable instead of resolving no one (strict 
     expect(fn () => Comments::on(PostTestModel::create())->body('hi @user1')->post())
         ->toThrow(InvalidConfigurationException::class, 'comments.mention_resolver');
 })->with([
-    'a blank string' => [''],
+    'a typo' => ['resolver'],
     'a number' => [42],
     'unknown class' => ['App\\Missing\\Resolver'],
     'unknown method' => [[MentionResolverTestFixture::class, 'missing']],
     'not invokable' => [PostTestModel::class],
 ]);
+
+it('reads a blank resolver as not set, storing the raw handle only (strict config)', function (string $blank): void {
+    config()->set('comments.mention_resolver', $blank);
+
+    $comment = Comments::on(PostTestModel::create())->body('hi @user1')->post();
+
+    expect($comment->mentions()->sole()->mentionable_id)->toBeNull();
+})->with(['empty' => [''], 'whitespace' => [' ']]);

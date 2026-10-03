@@ -10,8 +10,9 @@ use RoundlyConsulting\PackageToolkit\Support\Config;
 /**
  * Strict readers for the package's non-boolean settings.
  *
- * A default applies only when the key is absent (null). Anything present but unusable — `five`
- * for a length, `olderst` for an order, `pubilc` for a visibility, a blank disk — throws
+ * A setting that is not set — absent, null, or blank like a host's `KEY=` — takes its default
+ * (or, for an optional setting, none). Anything else unusable — `five` for a length, `olderst`
+ * for an order, `pubilc` for a visibility, an array for a disk — throws
  * {@see InvalidConfigurationException} naming the key, so a typo never quietly picks a side.
  *
  * @internal
@@ -45,7 +46,7 @@ final class CommentsConfig
      */
     public static function blocklist(): array
     {
-        return self::stringList('comments.blocklist', config('comments.blocklist') ?? []);
+        return self::stringList('comments.blocklist', self::unlessBlank(config('comments.blocklist')) ?? []);
     }
 
     /** `reject`, `pending` or `hidden`. */
@@ -63,7 +64,7 @@ final class CommentsConfig
     public static function mentionResolver(): ?callable
     {
         $key = 'comments.mention_resolver';
-        $resolver = config($key);
+        $resolver = self::unlessBlank(config($key));
 
         if ($resolver === null) {
             return null;
@@ -88,7 +89,7 @@ final class CommentsConfig
     /** `hide`, or null when the resolved-report path is disabled. */
     public static function onResolved(): ?string
     {
-        return config('comments.moderation.on_resolved') === null
+        return self::unlessBlank(config('comments.moderation.on_resolved')) === null
             ? null
             : Config::oneOf('comments.moderation.on_resolved', ['hide'], 'hide');
     }
@@ -111,7 +112,7 @@ final class CommentsConfig
     /** The explicit media disk, or null to choose one by visibility. */
     public static function disk(): ?string
     {
-        return config('comments.media.disk') === null ? null : self::string('comments.media.disk', '');
+        return self::unlessBlank(config('comments.media.disk')) === null ? null : self::string('comments.media.disk', '');
     }
 
     public static function privateDisk(): string
@@ -126,13 +127,13 @@ final class CommentsConfig
      */
     public static function acceptedMimeTypes(): array
     {
-        return self::stringList('comments.media.accepted_mime_types', config('comments.media.accepted_mime_types') ?? []);
+        return self::stringList('comments.media.accepted_mime_types', self::unlessBlank(config('comments.media.accepted_mime_types')) ?? []);
     }
 
     /** The attachment size cap in bytes, or null for media-library's own limit. */
     public static function maxFileSize(): ?int
     {
-        return config('comments.media.max_file_size') === null
+        return self::unlessBlank(config('comments.media.max_file_size')) === null
             ? null
             : Config::integer('comments.media.max_file_size', 1, 1);
     }
@@ -145,7 +146,7 @@ final class CommentsConfig
     public static function responsiveWidths(): ?array
     {
         $key = 'comments.media.responsive_widths';
-        $widths = config($key);
+        $widths = self::unlessBlank(config($key));
 
         if ($widths === null) {
             return null;
@@ -168,7 +169,7 @@ final class CommentsConfig
     /** Lifetime, in minutes, of a signed attachment URL; media-library's default when unset. */
     public static function temporaryUrlLifetime(): int
     {
-        if (config('comments.media.temporary_url_lifetime') === null) {
+        if (self::unlessBlank(config('comments.media.temporary_url_lifetime')) === null) {
             return Config::integer('media.temporary_url_default_lifetime', 5, 1);
         }
 
@@ -179,7 +180,7 @@ final class CommentsConfig
     public static function inlineDefaultVariant(): string
     {
         $key = 'comments.media.inline.default_variant';
-        $variant = config($key) ?? '';
+        $variant = self::unlessBlank(config($key)) ?? '';
 
         if (! is_string($variant)) {
             throw new InvalidConfigurationException(
@@ -198,17 +199,26 @@ final class CommentsConfig
 
     private static function string(string $key, string $default): string
     {
-        $value = config($key);
+        $value = self::unlessBlank(config($key));
 
         if ($value === null) {
             return $default;
         }
 
-        if (! is_string($value) || trim($value) === '') {
+        if (! is_string($value)) {
             throw InvalidConfigurationException::notAString($key, $value);
         }
 
         return $value;
+    }
+
+    /**
+     * A raw config value, with a blank string (`''` or whitespace — a host's `KEY=`) read as
+     * null: not set, exactly like an absent key.
+     */
+    private static function unlessBlank(mixed $value): mixed
+    {
+        return is_string($value) && trim($value) === '' ? null : $value;
     }
 
     /**

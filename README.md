@@ -148,16 +148,19 @@ return [
 
 Every `bool` switch is parsed as a boolean, so `.env` values mean what they say:
 `true`/`1`/`on`/`yes` turn it on, `false`/`0`/`off`/`no` turn it off (`COMMENTS_REQUIRE_APPROVAL=1`
-holds new comments; `COMMENTS_AUTHORIZATION=off` skips the policy). Anything else throws
+holds new comments; `COMMENTS_AUTHORIZATION=off` skips the policy). A blank value
+(`COMMENTS_AUTHORIZATION=`) is not set, so the default applies. Anything else throws
 `InvalidConfigurationException` instead of quietly reading as the default.
 
-Every other setting is just as strict. A default applies only when the key is absent (unset or
-`null`). Integers accept an `int` or a plain integer string (every env value is a string), so
-`COMMENTS_MAX_LENGTH=five`, `5.5` or a blank value throws rather than becoming `0`; lengths,
-depths, sizes, widths and lifetimes must be at least `1`. An `order`, `blocklist_action`,
+Every other setting is just as strict. A setting that is not set — absent, `null`, or blank like
+a host's `COMMENTS_MAX_LENGTH=` — takes its default; an optional one (`media.disk`,
+`media.max_file_size`, `media.responsive_widths`, `media.temporary_url_lifetime`) stays unset.
+Integers accept an `int` or a plain integer string (every env value is a string), so
+`COMMENTS_MAX_LENGTH=five` or `5.5` throws rather than becoming `0`; lengths, depths, sizes,
+widths and lifetimes must be at least `1`. An `order`, `blocklist_action`,
 `moderation.on_resolved`, `media.visibility` or `media.inline.on_missing` typo throws rather than
 picking a side (a `media.visibility` typo no longer reads as private, and an `on_resolved` typo no
-longer turns auto-hide off), and so does a blank or non-string bucket or disk name or a junk list.
+longer turns auto-hide off), and so does a non-string bucket or disk name or a junk list.
 `php artisan about` renders a broken setting as `INVALID` instead of failing.
 
 The package works with zero configuration — every key has a sensible default.

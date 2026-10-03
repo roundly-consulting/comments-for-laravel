@@ -55,8 +55,8 @@ return [
     |
     | The maximum number of characters allowed in a comment body. Writing a
     | longer body throws an InvalidCommentBodyException. Must be an integer of
-    | at least 1; anything else ("five", "") throws an
-    | InvalidConfigurationException.
+    | at least 1; anything else ("five", "5.5") throws an
+    | InvalidConfigurationException. A blank value is not set: the default applies.
     |
     */
 
