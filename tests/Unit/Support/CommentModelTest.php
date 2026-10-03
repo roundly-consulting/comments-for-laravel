@@ -18,10 +18,14 @@ it('resolves a configured model that extends the packaged one', function (): voi
     expect(CommentModel::class())->toBe(CustomCommentTestModel::class);
 });
 
-it('falls back to the packaged model when the configured model is not a comment', function (): void {
+it('refuses a foreign model instead of falling back to the packaged one', function (): void {
+    // The toolkit refuses any class that is not the packaged model or a subclass of it.
     config()->set('comments.model', ActorTestModel::class);
 
-    expect(CommentModel::class())->toBe(Comment::class);
+    expect(fn (): string => CommentModel::class())->toThrow(
+        InvalidConfigurationException::class,
+        'Configuration value [comments.model] must be a class-string of ['.Comment::class.'], ['.ActorTestModel::class.'] given.',
+    );
 });
 
 it('throws when the configured model is not an eloquent model', function (): void {
