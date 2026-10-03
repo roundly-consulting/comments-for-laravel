@@ -12,6 +12,7 @@ use RoundlyConsulting\Comments\Tests\ActorTestModel;
 use RoundlyConsulting\Comments\Tests\DenyingCommentPolicy;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
 use RoundlyConsulting\Comments\Tests\UserTestModel;
+use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 use RoundlyConsulting\Reports\Facades\Reports;
 
 /**
@@ -98,3 +99,17 @@ it('leaves inline tokens untouched when inline media is a falsy string', functio
     expect((string) $comment->renderBody())->toBe($body)
         ->and(commentsAbout())->toMatch('/Inline media\s*\.*\s*OFF/');
 })->with('falsy strings');
+
+it('throws on a switch typo instead of reading it as the default (strict config)', function (string $key, Closure $read): void {
+    config()->set($key, 'disabled');
+
+    expect($read)->toThrow(
+        InvalidConfigurationException::class,
+        "Configuration value [{$key}] must be a boolean (true/false, 1/0, on/off or yes/no), [disabled] given.",
+    );
+})->with([
+    'require_approval' => ['comments.require_approval', fn () => Comments::on(PostTestModel::create())->body('Hello')->post()],
+    'authorization' => ['comments.authorization', fn () => Comments::on(PostTestModel::create())->body('Hello')->post()],
+    'media.inline.enabled' => ['comments.media.inline.enabled', fn () => Comment::factory()->for(PostTestModel::create(), 'commentable')->create()->renderBody()],
+    'moderation.auto_hide (about)' => ['comments.moderation.auto_hide', fn (): string => commentsAbout()],
+]);
