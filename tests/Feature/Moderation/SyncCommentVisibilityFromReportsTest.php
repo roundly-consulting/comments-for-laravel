@@ -11,6 +11,7 @@ use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Tests\ActorTestModel;
 use RoundlyConsulting\Comments\Tests\ModeratorTestModel;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
+use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 use RoundlyConsulting\Reports\Enums\Status;
 use RoundlyConsulting\Reports\Events\ReportResolved;
 use RoundlyConsulting\Reports\Exceptions\ModeratorRequiredException;
@@ -53,14 +54,15 @@ it('leaves the comment approved when the resolved sync is disabled', function ()
     expect($comment->fresh()->status)->toBe(CommentStatus::Approved);
 });
 
-it('leaves the comment approved for an unrecognised action', function (): void {
-    config()->set('comments.moderation.on_resolved', 'freeze');
+it('refuses an unrecognised action instead of switching auto-hide off (strict config)', function (): void {
+    config()->set('comments.moderation.on_resolved', 'hdie');
 
     $comment = approvedComment();
 
-    reportAndUphold($comment);
-
-    expect($comment->fresh()->status)->toBe(CommentStatus::Approved);
+    expect(fn () => reportAndUphold($comment))->toThrow(
+        InvalidConfigurationException::class,
+        'Configuration value [comments.moderation.on_resolved] must be one of [hide], [hdie] given.',
+    );
 });
 
 it('ignores a non-comment subject', function (): void {

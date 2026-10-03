@@ -28,14 +28,28 @@ it('ships exactly the config keys it reads', function (): void {
         // `alerts.health` route name).
         // `comments.key_type` is read through `KeyType::fromConfig(…)` in the migration
         // (a scanned `database/` path), not a `config(` token, so it is named here too.
-        'extraReadPrefixes' => ['comments.model', 'comments.key_type'],
+        // The rest are read through the strict readers in Support\CommentsConfig —
+        // `Config::oneOf(…)` and the class's own string / list / resolver helpers — which are
+        // not `config(` tokens either, so each is named exactly for the same reason.
+        'extraReadPrefixes' => [
+            'comments.model',
+            'comments.key_type',
+            'comments.order',
+            'comments.blocklist_action',
+            'comments.mention_resolver',
+            'comments.media.attachments_bucket',
+            'comments.media.visibility',
+            'comments.media.private_disk',
+            'comments.media.responsive_widths',
+            'comments.media.inline.default_variant',
+            'comments.media.inline.on_missing',
+        ],
 
         // Deliberately NO `excludeFromReverse` for the provider. The testing README's own
         // example excludes the service provider on the grounds that "a render is not a
-        // read" — but CommentsServiceProvider's `contributesToAbout()` closure calls
-        // config('comments.require_approval'), '.max_length', '.max_depth',
-        // '.authorization', '.moderation.auto_hide' and '.media.inline.enabled' for real,
-        // and the toolkit's `bindFromConfig()` reads more still. Excluding it would discard
-        // the only reader of most of this file.
+        // read" — but CommentsServiceProvider's `contributesToAbout()` closure reads
+        // '.require_approval', '.authorization', '.moderation.auto_hide' and
+        // '.media.inline.enabled' for real (and the rest through CommentsConfig). Excluding
+        // it would discard real readers for nothing.
     ]);
 });

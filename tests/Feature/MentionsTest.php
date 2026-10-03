@@ -12,6 +12,7 @@ use RoundlyConsulting\Comments\Models\CommentMention;
 use RoundlyConsulting\Comments\Tests\ActorTestModel;
 use RoundlyConsulting\Comments\Tests\MentionResolverTestFixture;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
+use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 
 it('parses and stores @handles even without a resolver', function (): void {
     $post = PostTestModel::create();
@@ -225,13 +226,14 @@ it('resolves through a config:cache-safe resolver', function (mixed $resolver): 
     'class and method' => [[MentionResolverTestFixture::class, 'resolve']],
 ]);
 
-it('ignores a resolver that is not callable', function (mixed $resolver): void {
+it('refuses a resolver that is not callable instead of resolving no one (strict config)', function (mixed $resolver): void {
     config()->set('comments.mention_resolver', $resolver);
 
-    $comment = Comments::on(PostTestModel::create())->body('hi @user1')->post();
-
-    expect($comment->mentions()->sole()->mentionable_id)->toBeNull();
+    expect(fn () => Comments::on(PostTestModel::create())->body('hi @user1')->post())
+        ->toThrow(InvalidConfigurationException::class, 'comments.mention_resolver');
 })->with([
+    'a blank string' => [''],
+    'a number' => [42],
     'unknown class' => ['App\\Missing\\Resolver'],
     'unknown method' => [[MentionResolverTestFixture::class, 'missing']],
     'not invokable' => [PostTestModel::class],

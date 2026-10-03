@@ -22,7 +22,7 @@ final class Blocklist
             return null;
         }
 
-        return match ((string) config('comments.blocklist_action', 'reject')) {
+        return match (CommentsConfig::blocklistAction()) {
             'pending' => CommentStatus::Pending,
             'hidden' => CommentStatus::Hidden,
             default => throw CommentRejectedException::blocked(),
@@ -36,14 +36,7 @@ final class Blocklist
      */
     public function matches(string $body): bool
     {
-        /** @var list<string> $entries */
-        $entries = config('comments.blocklist', []);
-
-        foreach ($entries as $entry) {
-            if ($entry === '') {
-                continue;
-            }
-
+        foreach (CommentsConfig::blocklist() as $entry) {
             if ($this->isRegex($entry)) {
                 if (preg_match($entry, $body) === 1) {
                     return true;

@@ -3,12 +3,23 @@
 declare(strict_types=1);
 
 use RoundlyConsulting\Comments\Support\Blocklist;
+use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 
-it('ignores empty entries', function (): void {
-    config()->set('comments.blocklist', ['', 'spam']);
+it('refuses a blank, non-string or non-list blocklist (strict config)', function (mixed $blocklist): void {
+    config()->set('comments.blocklist', $blocklist);
 
-    expect((new Blocklist)->matches('hello world'))->toBeFalse()
-        ->and((new Blocklist)->matches('spam'))->toBeTrue();
+    expect(fn () => (new Blocklist)->matches('spam'))
+        ->toThrow(InvalidConfigurationException::class, 'comments.blocklist');
+})->with([
+    'a blank entry' => [['', 'spam']],
+    'a non-string entry' => [['spam', 3]],
+    'a string' => ['spam'],
+]);
+
+it('reads an absent blocklist as empty (strict config)', function (): void {
+    config()->set('comments.blocklist', null);
+
+    expect((new Blocklist)->matches('spam'))->toBeFalse();
 });
 
 it('treats single-character entries as plain words', function (): void {

@@ -54,7 +54,9 @@ return [
     |--------------------------------------------------------------------------
     |
     | The maximum number of characters allowed in a comment body. Writing a
-    | longer body throws an InvalidCommentBodyException.
+    | longer body throws an InvalidCommentBodyException. Must be an integer of
+    | at least 1; anything else ("five", "") throws an
+    | InvalidConfigurationException.
     |
     */
 
@@ -67,7 +69,8 @@ return [
     |
     | How many levels of nested replies are allowed and eager-loaded. A reply
     | deeper than this throws a MaxReplyDepthExceededException. A top-level
-    | comment is depth 1, its direct reply is depth 2, and so on.
+    | comment is depth 1, its direct reply is depth 2, and so on. Must be an
+    | integer of at least 1; anything else throws.
     |
     */
 
@@ -79,7 +82,8 @@ return [
     |--------------------------------------------------------------------------
     |
     | The default ordering applied by the reading helpers. Either "latest"
-    | (newest first) or "oldest" (oldest first).
+    | (newest first) or "oldest" (oldest first). Any other value throws an
+    | InvalidConfigurationException.
     |
     */
 
@@ -110,6 +114,7 @@ return [
     |   "reject"  — throw a CommentRejectedException (the comment is not stored)
     |   "pending" — store the comment with the "pending" status for review
     |   "hidden"  — store the comment with the "hidden" status
+    | Any other value throws an InvalidConfigurationException.
     |
     */
 
@@ -125,7 +130,8 @@ return [
     | through the container. Never a closure: `php artisan config:cache` cannot
     | store one. Handles are always stored; when the resolver returns a model
     | the mention is linked to it, and CommentMentioned fires once the comment
-    | is approved. Leave null to only store the raw handles.
+    | is approved. Leave null to only store the raw handles. A value that does
+    | not resolve to a callable throws an InvalidConfigurationException.
     |
     | @var class-string|array{0: class-string, 1: string}|null
     |
@@ -165,7 +171,7 @@ return [
     'moderation' => [
 
         // Auto-hide a comment when a report against it is upheld (ReportResolved).
-        // 'hide' | null (disable the resolved path).
+        // 'hide' | null (disable the resolved path). Anything else throws.
         'on_resolved' => 'hide',
 
         // Auto-hide a comment when its open-report count crosses the global
@@ -192,7 +198,7 @@ return [
         'attachments_bucket' => 'attachments',
 
         // Attachment visibility: 'private' (only ever linked via short-lived signed URLs)
-        // or 'public'.
+        // or 'public'. Anything else throws — a typo never picks a visibility for you.
         'visibility' => env('COMMENTS_MEDIA_VISIBILITY', 'private'),
 
         // Disk for the comment's media, whatever its visibility. null => chosen by visibility:
@@ -210,21 +216,21 @@ return [
         'accepted_mime_types' => [],
 
         // Max attachment size in BYTES, enforced on upload (media-library throws
-        // FileUnacceptableForBucket). null => media-library's media.max_file_size.
+        // FileUnacceptableForBucket), at least 1. null => media-library's media.max_file_size.
         'max_file_size' => null,
 
         // Responsive width ladder for image attachments.
         // null => the media-library default ladder (config('media.responsive.widths')).
         'responsive_widths' => null,
 
-        // Lifetime (minutes) of a signed attachment URL. null => the media default.
+        // Lifetime (minutes, at least 1) of a signed attachment URL. null => the media default.
         'temporary_url_lifetime' => null,
 
         // Inline [media:UUID] / [media:UUID|variant] rendering in the comment body.
         'inline' => [
             'enabled' => true,
             'default_variant' => '',
-            'on_missing' => 'strip', // 'strip' | 'keep'
+            'on_missing' => 'strip', // 'strip' | 'keep' (anything else throws)
         ],
     ],
 

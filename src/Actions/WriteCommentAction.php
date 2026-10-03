@@ -17,6 +17,7 @@ use RoundlyConsulting\Comments\Support\CommentAncestry;
 use RoundlyConsulting\Comments\Support\CommentAuthorizer;
 use RoundlyConsulting\Comments\Support\CommentLocks;
 use RoundlyConsulting\Comments\Support\CommentModel;
+use RoundlyConsulting\Comments\Support\CommentsConfig;
 use RoundlyConsulting\PackageToolkit\Support\Config;
 
 final readonly class WriteCommentAction
@@ -74,7 +75,7 @@ final readonly class WriteCommentAction
             throw InvalidCommentBodyException::empty();
         }
 
-        $maxLength = (int) config('comments.max_length', 5000);
+        $maxLength = CommentsConfig::maxLength();
 
         if (mb_strlen($trimmed) > $maxLength) {
             throw InvalidCommentBodyException::tooLong($maxLength);
@@ -154,7 +155,7 @@ final readonly class WriteCommentAction
      */
     private function guardReplyDepth(Comment $parent): void
     {
-        $maxDepth = (int) config('comments.max_depth', 5);
+        $maxDepth = CommentsConfig::maxDepth();
 
         if ($this->ancestry->depthOf($parent) + 1 > $maxDepth) {
             throw MaxReplyDepthExceededException::make($maxDepth);

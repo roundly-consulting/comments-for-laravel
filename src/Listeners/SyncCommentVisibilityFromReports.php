@@ -9,6 +9,7 @@ use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Events\CommentHidden;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Support\CommentModel;
+use RoundlyConsulting\Comments\Support\CommentsConfig;
 use RoundlyConsulting\PackageToolkit\Support\Config;
 use RoundlyConsulting\Reports\Events\ReportResolved;
 use RoundlyConsulting\Reports\Events\ReportThresholdReached;
@@ -29,13 +30,11 @@ final class SyncCommentVisibilityFromReports
 {
     /**
      * Auto-hide a comment whose report was upheld, per
-     * `comments.moderation.on_resolved` ('hide' | null to disable).
+     * `comments.moderation.on_resolved` ('hide' | null to disable; anything else throws).
      */
     public function handleResolved(ReportResolved $event): void
     {
-        $action = config('comments.moderation.on_resolved', 'hide');
-
-        if ($action !== 'hide') {
+        if (CommentsConfig::onResolved() === null) {
             return;
         }
 

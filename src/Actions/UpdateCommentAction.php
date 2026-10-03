@@ -13,6 +13,7 @@ use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Support\Blocklist;
 use RoundlyConsulting\Comments\Support\CommentAuthorizer;
 use RoundlyConsulting\Comments\Support\CommentLocks;
+use RoundlyConsulting\Comments\Support\CommentsConfig;
 
 final readonly class UpdateCommentAction
 {
@@ -35,7 +36,7 @@ final readonly class UpdateCommentAction
             throw InvalidCommentBodyException::empty();
         }
 
-        $maxLength = (int) config('comments.max_length', 5000);
+        $maxLength = CommentsConfig::maxLength();
 
         if (mb_strlen($body) > $maxLength) {
             throw InvalidCommentBodyException::tooLong($maxLength);

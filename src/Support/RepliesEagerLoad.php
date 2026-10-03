@@ -25,7 +25,7 @@ final class RepliesEagerLoad
      */
     public static function make(bool $publicOnly): array
     {
-        $levels = max(1, (int) config('comments.max_depth', 5) - 1);
+        $levels = max(1, CommentsConfig::maxDepth() - 1);
 
         return ['replies' => self::level($levels, $publicOnly)];
     }

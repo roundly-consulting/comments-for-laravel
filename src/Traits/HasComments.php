@@ -10,6 +10,7 @@ use RoundlyConsulting\Comments\CommentsManager;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Support\CommentModel;
+use RoundlyConsulting\Comments\Support\CommentsConfig;
 use RoundlyConsulting\Comments\Support\RepliesEagerLoad;
 
 trait HasComments
@@ -27,7 +28,7 @@ trait HasComments
      */
     public function approvedComments(): MorphMany
     {
-        $direction = config('comments.order', 'latest') === 'oldest' ? 'asc' : 'desc';
+        $direction = CommentsConfig::order() === 'oldest' ? 'asc' : 'desc';
 
         return $this->comments()
             ->whereNull('parent_id')

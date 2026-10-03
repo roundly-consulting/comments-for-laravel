@@ -135,21 +135,30 @@ return [
 | `model`            | `class-string`      | `Comment::class` | —                            | The Eloquent model used to store comments. Point this at your own model (extending `RoundlyConsulting\Comments\Models\Comment`) if you need extra columns, casts, or behaviour. |
 | `key_type`         | `string`            | `bigint`         | `COMMENTS_KEY_TYPE`          | Key type of every polymorphic id column (commentable, actor, mentionable, lockable) — `bigint`, `uuid` or `ulid`. Set it to match your models' primary keys before migrating; keys are stored and read back as-is. |
 | `require_approval` | `bool`              | `false`          | `COMMENTS_REQUIRE_APPROVAL`  | When `true`, new comments start as `pending` and must be approved before they count as visible. When `false`, comments are approved immediately. |
-| `max_length`       | `int`               | `5000`           | `COMMENTS_MAX_LENGTH`        | Maximum characters allowed in a comment body. A longer body throws `InvalidCommentBodyException`. |
-| `max_depth`        | `int`               | `5`              | `COMMENTS_MAX_DEPTH`         | Maximum nesting depth for replies (a top-level comment is depth 1). Replying deeper throws `MaxReplyDepthExceededException` — soft-deleted ancestors still count — and threaded eager-loading is bounded to this depth. |
-| `order`            | `string`            | `latest`         | `COMMENTS_ORDER`             | Default ordering for reading helpers — `latest` (newest first) or `oldest`. |
-| `blocklist`        | `list<string>`      | `[]`             | —                            | Banned words or regexes. Plain strings match case-insensitively as whole words; delimited entries (e.g. `/badword/i`) are treated as patterns. |
-| `blocklist_action` | `string`            | `reject`         | `COMMENTS_BLOCKLIST_ACTION`  | What to do on a match, on write **and** edit: `reject` (throw `CommentRejectedException`), `pending`, or `hidden`. |
-| `mention_resolver` | `class-string\|array\|null` | `null`  | —                            | Resolves a parsed `@handle` to an Eloquent model (or `null`): an invokable class-string or a `[Class::class, 'method']` pair, built through the container — never a closure, which `php artisan config:cache` cannot store. Handles are always stored; resolved ones link to the model and fire `CommentMentioned` once the comment is approved (see [@mentions](#mentions)). |
+| `max_length`       | `int`               | `5000`           | `COMMENTS_MAX_LENGTH`        | Maximum characters allowed in a comment body (at least `1`). A longer body throws `InvalidCommentBodyException`. |
+| `max_depth`        | `int`               | `5`              | `COMMENTS_MAX_DEPTH`         | Maximum nesting depth for replies, at least `1` (a top-level comment is depth 1). Replying deeper throws `MaxReplyDepthExceededException` — soft-deleted ancestors still count — and threaded eager-loading is bounded to this depth. |
+| `order`            | `string`            | `latest`         | `COMMENTS_ORDER`             | Default ordering for reading helpers — `latest` (newest first) or `oldest`; anything else throws. |
+| `blocklist`        | `list<string>`      | `[]`             | —                            | Banned words or regexes. Plain strings match case-insensitively as whole words; delimited entries (e.g. `/badword/i`) are treated as patterns. A blank or non-string entry throws. |
+| `blocklist_action` | `string`            | `reject`         | `COMMENTS_BLOCKLIST_ACTION`  | What to do on a match, on write **and** edit: `reject` (throw `CommentRejectedException`), `pending`, or `hidden`; anything else throws. |
+| `mention_resolver` | `class-string\|array\|null` | `null`  | —                            | Resolves a parsed `@handle` to an Eloquent model (or `null`): an invokable class-string or a `[Class::class, 'method']` pair, built through the container — never a closure, which `php artisan config:cache` cannot store. Handles are always stored; resolved ones link to the model and fire `CommentMentioned` once the comment is approved (see [@mentions](#mentions)). A value that doesn't resolve to a callable (an unknown class, a missing method) throws. |
 | `authorization`    | `bool`              | `false`          | `COMMENTS_AUTHORIZATION`     | When `true`, every mutation (create, update, delete, restore, moderate, lock, unlock) consults the `Comment` policy. Off by default so existing behaviour is unchanged. |
-| `moderation.on_resolved` | `string\|null` | `hide`         | —                            | Auto-hide a comment when a report against it is upheld (`ReportResolved`). `hide` or `null` to disable. |
+| `moderation.on_resolved` | `string\|null` | `hide`         | —                            | Auto-hide a comment when a report against it is upheld (`ReportResolved`). `hide` or `null` to disable; anything else throws. |
 | `moderation.auto_hide` | `bool`            | `true`          | —                            | Auto-hide a comment when it crosses the global `reports.threshold` (`ReportThresholdReached`). |
-| `media`            | `array`             | see above        | `COMMENTS_MEDIA_*`           | The comment's single `attachments` bucket (disk, private disk, visibility, accepted types, max size in **bytes** — enforced on upload, responsive widths, signed-URL lifetime) plus inline `[media:UUID]` body rendering (`enabled`, `default_variant`, `on_missing`). With `disk` unset, private attachments (and their variants) go to `private_disk` (`local`), public ones to media-library's default disk. |
+| `media`            | `array`             | see above        | `COMMENTS_MEDIA_*`           | The comment's single `attachments` bucket (disk, private disk, visibility, accepted types, max size in **bytes** — enforced on upload, responsive widths, signed-URL lifetime) plus inline `[media:UUID]` body rendering (`enabled`, `default_variant`, `on_missing`). With `disk` unset, private attachments (and their variants) go to `private_disk` (`local`), public ones to media-library's default disk. `visibility` is `private` or `public`, `on_missing` is `strip` or `keep`. |
 
 Every `bool` switch is parsed as a boolean, so `.env` values mean what they say:
 `true`/`1`/`on`/`yes` turn it on, `false`/`0`/`off`/`no` turn it off (`COMMENTS_REQUIRE_APPROVAL=1`
 holds new comments; `COMMENTS_AUTHORIZATION=off` skips the policy). Anything else throws
 `InvalidConfigurationException` instead of quietly reading as the default.
+
+Every other setting is just as strict. A default applies only when the key is absent (unset or
+`null`). Integers accept an `int` or a plain integer string (every env value is a string), so
+`COMMENTS_MAX_LENGTH=five`, `5.5` or a blank value throws rather than becoming `0`; lengths,
+depths, sizes, widths and lifetimes must be at least `1`. An `order`, `blocklist_action`,
+`moderation.on_resolved`, `media.visibility` or `media.inline.on_missing` typo throws rather than
+picking a side (a `media.visibility` typo no longer reads as private, and an `on_resolved` typo no
+longer turns auto-hide off), and so does a blank or non-string bucket or disk name or a junk list.
+`php artisan about` renders a broken setting as `INVALID` instead of failing.
 
 The package works with zero configuration — every key has a sensible default.
 

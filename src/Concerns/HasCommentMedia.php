@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\HtmlString;
 use RoundlyConsulting\Comments\Support\CommentBodyMediaRenderer;
+use RoundlyConsulting\Comments\Support\CommentsConfig;
 use RoundlyConsulting\MediaLibrary\Buckets\MediaBucket;
 use RoundlyConsulting\MediaLibrary\Concerns\InteractsWithMedia;
 use RoundlyConsulting\MediaLibrary\Models\Media;
@@ -38,15 +39,15 @@ trait HasCommentMedia
         $bucket = $this->addMediaBucket($this->attachmentsBucket())
             ->withVisibility($this->attachmentsVisibility());
 
-        $accepted = config('comments.media.accepted_mime_types');
+        $accepted = CommentsConfig::acceptedMimeTypes();
 
-        if (is_array($accepted) && $accepted !== []) {
-            $bucket->acceptsMimeTypes($this->stringList($accepted));
+        if ($accepted !== []) {
+            $bucket->acceptsMimeTypes($accepted);
         }
 
-        $maxFileSize = config('comments.media.max_file_size');
+        $maxFileSize = CommentsConfig::maxFileSize();
 
-        if (is_int($maxFileSize) && $maxFileSize > 0) {
+        if ($maxFileSize !== null) {
             $bucket->maxFileSize($maxFileSize);
         }
 
@@ -171,7 +172,7 @@ trait HasCommentMedia
             $body,
             $media,
             fn (Media $media, string $variant): string => $this->resolveAttachmentUrl($media, $variant),
-            (string) config('comments.media.inline.default_variant', ''),
+            CommentsConfig::inlineDefaultVariant(),
             $this->onMissingStrategy(),
         );
 
@@ -180,96 +181,41 @@ trait HasCommentMedia
 
     public function attachmentsBucket(): string
     {
-        return (string) config('comments.media.attachments_bucket', 'attachments');
+        return CommentsConfig::attachmentsBucket();
     }
 
     private function attachmentsVisibility(): string
     {
-        $visibility = config('comments.media.visibility', 'private');
-
-        return $visibility === 'public' ? 'public' : 'private';
+        return CommentsConfig::attachmentsVisibility();
     }
 
     private function configureMediaBucket(MediaBucket $bucket): MediaBucket
     {
-        $disk = config('comments.media.disk');
+        $disk = CommentsConfig::disk();
 
-        if (is_string($disk) && $disk !== '') {
+        if ($disk !== null) {
             $bucket->useDisk($disk);
-        } elseif ($this->attachmentsVisibility() === 'private') {
+        } elseif ($this->attachmentsVisibility() === CommentsConfig::VISIBILITY_PRIVATE) {
             // A private attachment must not land on media-library's default disk: that is the
             // web-served `public` disk, where the file is reachable under /storage without the
             // signed URL. Its variants follow it, whatever `media.variants_disk` says.
-            $privateDisk = $this->privateAttachmentsDisk();
+            $privateDisk = CommentsConfig::privateDisk();
 
             $bucket->useDisk($privateDisk)->storingVariantsOnDisk($privateDisk);
         }
 
-        $widths = config('comments.media.responsive_widths');
-
-        $bucket->responsiveWidths(
-            is_array($widths) ? $this->normalizeWidths($widths) : null,
-        );
+        $bucket->responsiveWidths(CommentsConfig::responsiveWidths());
 
         return $bucket;
     }
 
-    private function privateAttachmentsDisk(): string
-    {
-        $disk = config('comments.media.private_disk', 'local');
-
-        return is_string($disk) && $disk !== '' ? $disk : 'local';
-    }
-
     private function temporaryUrlExpiry(): DateTimeInterface
     {
-        $minutes = config('comments.media.temporary_url_lifetime');
-
-        if (! is_numeric($minutes)) {
-            $minutes = config('media.temporary_url_default_lifetime', 5);
-        }
-
-        return CarbonImmutable::now()->addMinutes(is_numeric($minutes) ? (int) $minutes : 5);
+        return CarbonImmutable::now()->addMinutes(CommentsConfig::temporaryUrlLifetime());
     }
 
     private function onMissingStrategy(): string
     {
-        $strategy = config('comments.media.inline.on_missing', 'strip');
-
-        return $strategy === 'keep' ? 'keep' : 'strip';
-    }
-
-    /**
-     * @param  array<array-key, mixed>  $values
-     * @return list<string>
-     */
-    private function stringList(array $values): array
-    {
-        $clean = [];
-
-        foreach ($values as $value) {
-            if (is_string($value) && $value !== '') {
-                $clean[] = $value;
-            }
-        }
-
-        return $clean;
-    }
-
-    /**
-     * @param  array<array-key, mixed>  $widths
-     * @return list<int>
-     */
-    private function normalizeWidths(array $widths): array
-    {
-        $clean = [];
-
-        foreach ($widths as $width) {
-            if (is_int($width) && $width > 0) {
-                $clean[] = $width;
-            }
-        }
-
-        return $clean;
+        return CommentsConfig::inlineOnMissing();
     }
 }

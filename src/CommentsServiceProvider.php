@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Comments;
 
+use Closure;
 use Illuminate\Support\Facades\Event;
 use RoundlyConsulting\Comments\Listeners\SyncCommentVisibilityFromReports;
 use RoundlyConsulting\Comments\Support\CommentModel;
+use RoundlyConsulting\Comments\Support\CommentsConfig;
 use RoundlyConsulting\PackageToolkit\Concerns\RegistersBlueprintMacros;
+use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 use RoundlyConsulting\PackageToolkit\Package;
 use RoundlyConsulting\PackageToolkit\PackageServiceProvider;
 use RoundlyConsulting\PackageToolkit\Support\Config;
@@ -28,10 +31,14 @@ final class CommentsServiceProvider extends PackageServiceProvider
             ->contributesToAbout(static fn (): array => [
                 'Model' => class_basename(CommentModel::class()),
                 'Require approval' => Config::boolean('comments.require_approval') ? 'ON' : 'OFF',
-                'Max length' => ((int) config('comments.max_length', 5000)).' chars',
-                'Max depth' => (string) (int) config('comments.max_depth', 5),
+                'Max length' => self::orInvalid(static fn (): string => CommentsConfig::maxLength().' chars'),
+                'Max depth' => self::orInvalid(static fn (): string => (string) CommentsConfig::maxDepth()),
                 // A count, never the terms — a blocklist is moderation-sensitive.
-                'Blocklist' => self::blocklistSize() === 0 ? 'NONE' : self::blocklistSize().' term(s)',
+                'Blocklist' => self::orInvalid(static function (): string {
+                    $size = count(CommentsConfig::blocklist());
+
+                    return $size === 0 ? 'NONE' : $size.' term(s)';
+                }),
                 'Authorization' => Config::boolean('comments.authorization') ? 'ON' : 'OFF',
                 'Auto-moderation' => Config::boolean('comments.moderation.auto_hide', true) ? 'ON' : 'OFF',
                 'Inline media' => Config::boolean('comments.media.inline.enabled', true) ? 'ON' : 'OFF',
@@ -60,10 +67,18 @@ final class CommentsServiceProvider extends PackageServiceProvider
         Event::listen(ReportThresholdReached::class, [SyncCommentVisibilityFromReports::class, 'handleThresholdReached']);
     }
 
-    private static function blocklistSize(): int
+    /**
+     * A strict read rendered for `about`, or `INVALID` when the setting is broken — so
+     * `php artisan about` still works on a misconfigured host while every real read throws.
+     *
+     * @param  Closure(): string  $read
+     */
+    private static function orInvalid(Closure $read): string
     {
-        $blocklist = config('comments.blocklist', []);
-
-        return is_array($blocklist) ? count($blocklist) : 0;
+        try {
+            return $read();
+        } catch (InvalidConfigurationException) {
+            return 'INVALID';
+        }
     }
 }
