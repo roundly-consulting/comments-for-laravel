@@ -148,7 +148,8 @@ return [
 
 Every `bool` switch is parsed as a boolean, so `.env` values mean what they say:
 `true`/`1`/`on`/`yes` turn it on, `false`/`0`/`off`/`no` turn it off (`COMMENTS_REQUIRE_APPROVAL=1`
-holds new comments; `COMMENTS_AUTHORIZATION=off` skips the policy).
+holds new comments; `COMMENTS_AUTHORIZATION=off` skips the policy). Anything else throws
+`InvalidConfigurationException` instead of quietly reading as the default.
 
 The package works with zero configuration — every key has a sensible default.
 

@@ -25,9 +25,9 @@ return [
     |
     | The key type used for the polymorphic actor / commentable / mentionable /
     | lockable columns. Use "uuid" or "ulid" when the models these point at use
-    | UUID/ULID primary keys, otherwise leave it as "bigint". Any unrecognized
-    | value falls back to "bigint". It is fixed when the migration first runs, so
-    | choose it before publishing the migrations.
+    | UUID/ULID primary keys, otherwise leave it as "bigint". Any other value
+    | throws an InvalidConfigurationException. It is fixed when the migration
+    | first runs, so choose it before publishing the migrations.
     |
     | Supported: "bigint", "uuid", "ulid"
     |
