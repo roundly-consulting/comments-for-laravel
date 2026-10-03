@@ -182,7 +182,9 @@ final class CommentsConfig
         $variant = config($key) ?? '';
 
         if (! is_string($variant)) {
-            throw InvalidConfigurationException::notAString($key, $variant);
+            throw new InvalidConfigurationException(
+                "Configuration value [{$key}] must be a variant name (a string, '' for the original), [".self::describe($variant).'] given.',
+            );
         }
 
         return $variant;

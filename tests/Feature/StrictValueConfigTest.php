@@ -10,6 +10,7 @@ use RoundlyConsulting\Comments\Exceptions\CommentRejectedException;
 use RoundlyConsulting\Comments\Facades\Comments;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Support\Blocklist;
+use RoundlyConsulting\Comments\Support\CommentsConfig;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
 use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 
@@ -194,4 +195,13 @@ it('flags a broken setting in about instead of rendering a fallback (strict conf
     expect($output)->toMatch('/Max length\W+INVALID/')
         ->and($output)->toMatch('/Max depth\W+INVALID/')
         ->and($output)->not->toContain('0 chars');
+});
+
+it('names the variant expectation for a non-string default variant (strict config)', function (): void {
+    config()->set('comments.media.inline.default_variant', ['thumb']);
+
+    expect(fn () => CommentsConfig::inlineDefaultVariant())->toThrow(
+        InvalidConfigurationException::class,
+        "Configuration value [comments.media.inline.default_variant] must be a variant name (a string, '' for the original), [array] given.",
+    );
 });
