@@ -6,10 +6,14 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+## 1.0.2 - 2026-10-11
+
 ### Changed
 
 - Maintenance: requires the latest roundly packages — package-toolkit `^1.3.0`, approvals `^1.2.3`,
   enums `^1.1.0`, likes `^1.1.0`, media-library `^1.1.2`, reports `^1.1.0`; dev: testing `^1.2.1`.
+- Documentation: the README hero image uses an absolute URL, so it renders on Packagist and other
+  sites.
 
 ## 1.0.1 - 2026-10-04
 
