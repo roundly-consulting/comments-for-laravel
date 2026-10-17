@@ -25,6 +25,9 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
   target (`CommentsLockedException`), checks the policy's existing `create` ability on the target
   when `comments.authorization` is on, and fires `CommentsTransferred`. `Comments::fake()` records
   it: `assertTransferred()` / `assertNothingTransferred()`.
+- `Comments::blocklisted($body)` tells you whether a body matches the configured blocklist, checked
+  exactly as posting checks it. It never throws, so it can tell a comment the blocklist held as
+  `pending` apart from one waiting for `require_approval`.
 
 ## 1.0.2 - 2026-10-11
 

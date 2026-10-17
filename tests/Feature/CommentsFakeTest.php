@@ -212,3 +212,13 @@ it('records no transfer that throws', function (): void {
 
     $fake->assertNothingTransferred();
 });
+
+it('does not record a blocklist read', function (): void {
+    $fake = Comments::fake();
+    config()->set('comments.blocklist', ['spam']);
+
+    expect(Comments::blocklisted('pure spam'))->toBeTrue();
+
+    $fake->assertNothingPosted();
+    $fake->assertNothingTransferred();
+});

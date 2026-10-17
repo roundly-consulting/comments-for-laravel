@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use RoundlyConsulting\Comments\CommentsManager;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Exceptions\CommentRejectedException;
 use RoundlyConsulting\Comments\Facades\Comments;
@@ -118,4 +119,55 @@ it('lets clean comments through untouched', function (): void {
     $comment = Comments::on($post)->body('a perfectly fine comment')->post();
 
     expect($comment->status)->toBe(CommentStatus::Approved);
+});
+
+/**
+ * C-6 — `Comments::blocklisted()`: the write path's filter, as a read.
+ */
+it('answers whether a body is blocklisted', function (): void {
+    expect(Comments::blocklisted('this is spam'))->toBeTrue()
+        ->and(Comments::blocklisted('SPAM everywhere'))->toBeTrue()
+        ->and(Comments::blocklisted('contains a BADWORD here'))->toBeTrue()
+        ->and(Comments::blocklisted('a perfectly fine comment'))->toBeFalse()
+        ->and(Comments::blocklisted('spammer'))->toBeFalse();
+});
+
+it('answers without throwing whatever the blocklist action', function (string $action): void {
+    config()->set('comments.blocklist_action', $action);
+
+    expect(Comments::blocklisted('this is spam'))->toBeTrue();
+})->with(['reject', 'pending', 'hidden']);
+
+it('answers false with no blocklist configured', function (): void {
+    config()->set('comments.blocklist', []);
+
+    expect(Comments::blocklisted('this is spam'))->toBeFalse();
+});
+
+it('checks the body exactly as posting does — trimmed', function (): void {
+    config()->set('comments.blocklist', ['/^spam/']);
+    config()->set('comments.blocklist_action', 'pending');
+
+    $comment = Comments::on(PostTestModel::create())->body('   spam first')->post();
+
+    expect($comment->status)->toBe(CommentStatus::Pending)
+        ->and(Comments::blocklisted('   spam first'))->toBeTrue();
+});
+
+it('tells a blocklist hold apart from an approval hold', function (): void {
+    config()->set('comments.require_approval', true);
+    config()->set('comments.blocklist_action', 'pending');
+    $post = PostTestModel::create();
+
+    $blocked = Comments::on($post)->body('this is spam')->post();
+    $waiting = Comments::on($post)->body('a fine comment')->post();
+
+    expect($blocked->status)->toBe(CommentStatus::Pending)
+        ->and($waiting->status)->toBe(CommentStatus::Pending)
+        ->and(Comments::blocklisted($blocked->comment))->toBeTrue()
+        ->and(Comments::blocklisted($waiting->comment))->toBeFalse();
+});
+
+it('answers through an injected manager', function (): void {
+    expect(app(CommentsManager::class)->blocklisted('this is spam'))->toBeTrue();
 });

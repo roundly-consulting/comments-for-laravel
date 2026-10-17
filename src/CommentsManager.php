@@ -22,6 +22,7 @@ use RoundlyConsulting\Comments\DataTransferObjects\WriteCommentData;
 use RoundlyConsulting\Comments\Facades\Comments;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Models\CommentLock;
+use RoundlyConsulting\Comments\Support\Blocklist;
 use RoundlyConsulting\Comments\Support\CommentLocks;
 
 /**
@@ -142,6 +143,16 @@ class CommentsManager
     public function isThreadLocked(Comment $comment): bool
     {
         return $this->container->make(CommentLocks::class)->threadLocked($comment);
+    }
+
+    /**
+     * Whether the body matches the configured blocklist — checked exactly as posting checks it
+     * (trimmed). A read: it never throws, whatever `comments.blocklist_action` says, so it tells
+     * a comment the blocklist held apart from one held by `comments.require_approval`.
+     */
+    public function blocklisted(string $body): bool
+    {
+        return $this->container->make(Blocklist::class)->matches(trim($body));
     }
 
     /**

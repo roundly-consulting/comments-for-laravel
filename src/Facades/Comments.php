@@ -25,6 +25,7 @@ use RoundlyConsulting\Comments\Testing\CommentsFake;
  * @method static \RoundlyConsulting\Comments\Models\Comment lockThread(\RoundlyConsulting\Comments\Models\Comment $comment)
  * @method static \RoundlyConsulting\Comments\Models\Comment unlockThread(\RoundlyConsulting\Comments\Models\Comment $comment)
  * @method static bool isThreadLocked(\RoundlyConsulting\Comments\Models\Comment $comment)
+ * @method static bool blocklisted(string $body)
  * @method static int transfer(\Illuminate\Database\Eloquent\Model $from, \Illuminate\Database\Eloquent\Model $to)
  * @method static void assertPosted(\RoundlyConsulting\Comments\Models\Comment|callable|null $comment = null)
  * @method static void assertNothingPosted()
