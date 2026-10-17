@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace RoundlyConsulting\Comments\Tests;
 
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use RoundlyConsulting\Comments\Tests\Factories\UlidKeyedTestModelFactory;
 use RoundlyConsulting\Comments\Traits\GivesComments;
 use RoundlyConsulting\Comments\Traits\HasComments;
 
@@ -19,6 +21,10 @@ final class UlidKeyedTestModel extends Model
 {
     use GivesComments;
     use HasComments;
+
+    /** @use HasFactory<UlidKeyedTestModelFactory> */
+    use HasFactory;
+
     use HasUlids;
 
     public $table = 'ulid_keyed_models';
@@ -26,4 +32,9 @@ final class UlidKeyedTestModel extends Model
     protected $guarded = [];
 
     public $timestamps = false;
+
+    protected static function newFactory(): UlidKeyedTestModelFactory
+    {
+        return UlidKeyedTestModelFactory::new();
+    }
 }

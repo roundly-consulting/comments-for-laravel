@@ -19,6 +19,11 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
   your auth model, built through that model's own factory. If the auth model has no factory, or
   is missing from an enforced morph map, the factory throws a `LogicException` that tells you to
   use `on($subject)`.
+- `CommentLock::factory()` now locks a real subject: the one you pass to the new `on($subject)`
+  state or `for($subject, 'lockable')`, or else a new user of your auth model, as a bare comment
+  gets. It used to lock a fixed `post` #1: PostgreSQL rejects that id in a uuid column, it means
+  nothing under a ulid key, and a second lock clashed on the unique key. Without a usable auth
+  model factory it throws the same kind of `LogicException`.
 
 ## 1.1.2 - 2026-10-17
 

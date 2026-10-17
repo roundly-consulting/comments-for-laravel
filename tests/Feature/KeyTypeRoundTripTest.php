@@ -2,9 +2,6 @@
 
 declare(strict_types=1);
 
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Schema\Blueprint;
-use Illuminate\Support\Facades\Schema;
 use RoundlyConsulting\Comments\Exceptions\CommentsLockedException;
 use RoundlyConsulting\Comments\Facades\Comments;
 use RoundlyConsulting\Comments\Tests\UlidKeyedTestModel;
@@ -16,26 +13,6 @@ use RoundlyConsulting\Comments\Tests\UuidKeyedTestModel;
  * own key, never an integer squash of it (`(int) '0199…'` is `199`, and a locked uuid
  * subject was then looked up by the wrong id and never read as locked).
  */
-if (! function_exists('migrateCommentsKeyedBy')) {
-    /**
-     * @param  class-string<Model>  $model
-     */
-    function migrateCommentsKeyedBy(string $keyType, string $model): void
-    {
-        config()->set('comments.key_type', $keyType);
-
-        Schema::dropIfExists('comment_locks');
-        Schema::dropIfExists('comment_mentions');
-        Schema::dropIfExists('comments');
-
-        (require __DIR__.'/../../database/migrations/0001_01_01_000000_create_comments_table.php')->up();
-
-        Schema::create((new $model)->getTable(), function (Blueprint $table) use ($keyType): void {
-            $keyType === 'ulid' ? $table->ulid('id')->primary() : $table->uuid('id')->primary();
-        });
-    }
-}
-
 dataset('non-integer key types', [
     'uuid' => ['uuid', UuidKeyedTestModel::class],
     'ulid' => ['ulid', UlidKeyedTestModel::class],
