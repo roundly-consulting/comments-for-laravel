@@ -6,6 +6,11 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+### Changed
+
+- Maintenance: dev: testing `^1.6`.
+- Maintenance: CI runs the PostgreSQL and MySQL test legs on tmpfs.
+
 ## 1.1.2 - 2026-10-17
 
 ### Fixed
