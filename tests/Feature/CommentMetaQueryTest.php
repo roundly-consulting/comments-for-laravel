@@ -35,15 +35,19 @@ beforeEach(function (): void {
     $make('other subject', ['tickets' => ['internal' => true, 'role' => 'agent']], $other);
 });
 
-/**
- * @return list<string>
- */
-function metaBodies(callable $refine): array
-{
-    $query = Comments::for(test()->post);
-    $refine($query);
+if (! function_exists('metaBodies')) {
+    /**
+     * The bodies of the test post's comments the refinement keeps, sorted.
+     *
+     * @return list<string>
+     */
+    function metaBodies(callable $refine): array
+    {
+        $query = Comments::for(test()->post);
+        $refine($query);
 
-    return $query->get()->pluck('comment')->sort()->values()->all();
+        return $query->get()->pluck('comment')->sort()->values()->all();
+    }
 }
 
 it('runs on the driver the leg declares', function (): void {
