@@ -6,6 +6,10 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+### Fixed
+
+- Factories build the configured model when a host swaps it.
+
 ## 1.1.1 - 2026-10-17
 
 ### Fixed

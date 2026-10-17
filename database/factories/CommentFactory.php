@@ -8,11 +8,24 @@ use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Models\Comment;
+use RoundlyConsulting\Comments\Support\CommentModel;
 
 /** @extends Factory<Comment> */
 final class CommentFactory extends Factory
 {
     protected $model = Comment::class;
+
+    /**
+     * Build the configured model, not the packaged one: a host that swaps
+     * `comments.model` gets its own class, with its casts,
+     * events and observers.
+     *
+     * @return class-string<Comment>
+     */
+    public function modelName(): string
+    {
+        return CommentModel::class();
+    }
 
     public function definition(): array
     {
