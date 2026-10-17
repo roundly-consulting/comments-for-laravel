@@ -73,6 +73,13 @@ ArchPresets::noLocalCryptoPrimitives('RoundlyConsulting\Comments');
 ArchPresets::modelsResolveThroughSeam(__DIR__.'/../src', 'Support');
 
 /**
+ * The factory half of the seam: CommentFactory returns the CommentModel seam from
+ * `modelName()`, so a host that swapped `comments.model` gets its own rows (and events) out
+ * of `Comment::factory()` — and out of CommentMentionFactory's `comment_id` default.
+ */
+ArchPresets::factoriesResolveThroughSeam(__DIR__.'/../database/factories', __DIR__.'/../src', 'Support');
+
+/**
  * The morph-key seam, guarded. Comments migrated its four morph columns off raw
  * `$table->morphs()` onto `morphKey($name, KeyType::…)` so a uuid/ulid host can flip its
  * whole graph coherently — a hardcoded bigint id breaks those hosts on Postgres, and SQLite
