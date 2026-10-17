@@ -11,6 +11,9 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
 - `$mention->comment` now returns your configured `comments.model` class instead of the packaged
   `Comment`, so a swapped model's casts, accessors and relations apply when you read a comment
   from its mention.
+- The `AssertsComments` helpers (`assertCommented()`, `assertNotCommented()`,
+  `assertCommentCount()`) now query through the configured `comments.model`, so they agree with
+  what your model sees — its table, connection and global scopes.
 
 ## 1.1.0 - 2026-10-17
 

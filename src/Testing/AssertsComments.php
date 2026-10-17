@@ -6,17 +6,20 @@ namespace RoundlyConsulting\Comments\Testing;
 
 use Illuminate\Database\Eloquent\Model;
 use PHPUnit\Framework\Assert;
-use RoundlyConsulting\Comments\Models\Comment;
+use RoundlyConsulting\Comments\Support\CommentModel;
 
 /**
  * Assertion helpers for host-app tests. Use this trait in a test case to make
  * comment expectations read clearly.
+ *
+ * Every helper reads through the `comments.model` seam, so it sees exactly what the host's
+ * configured model sees (its table, connection and global scopes).
  */
 trait AssertsComments
 {
     protected function assertCommented(Model $subject, ?string $body = null): void
     {
-        $query = Comment::query()
+        $query = CommentModel::class()::query()
             ->where('commentable_type', $subject->getMorphClass())
             ->where('commentable_id', $subject->getKey());
 
@@ -32,7 +35,7 @@ trait AssertsComments
 
     protected function assertNotCommented(Model $subject): void
     {
-        $exists = Comment::query()
+        $exists = CommentModel::class()::query()
             ->where('commentable_type', $subject->getMorphClass())
             ->where('commentable_id', $subject->getKey())
             ->exists();
@@ -42,7 +45,7 @@ trait AssertsComments
 
     protected function assertCommentCount(Model $subject, int $expected): void
     {
-        $actual = Comment::query()
+        $actual = CommentModel::class()::query()
             ->where('commentable_type', $subject->getMorphClass())
             ->where('commentable_id', $subject->getKey())
             ->count();
