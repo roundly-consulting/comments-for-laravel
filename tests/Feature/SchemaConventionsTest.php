@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Illuminate\Support\Facades\Schema;
+use RoundlyConsulting\Testing\Database\DriverMatrix;
 
 /**
  * Pins the exact schema the migration emits — every column, index and morph
@@ -24,6 +25,7 @@ it('emits the comments table columns', function (): void {
         'created_at',
         'updated_at',
         'deleted_at',
+        'meta',
     ]);
 });
 
@@ -71,4 +73,16 @@ it('keeps morph nullability', function (string $table, string $column, bool $nul
     ['comments', 'commentable_id', false],
     ['comments', 'commentable_type', false],
     ['comment_locks', 'lockable_id', false],
+    // Every comment written before 1.1.0 has no metadata.
+    ['comments', 'meta', true],
 ]);
+
+it('stores meta as json, and as jsonb on postgres', function (): void {
+    $type = Schema::getColumnType('comments', 'meta');
+
+    expect($type)->toBe(match (DriverMatrix::driver()) {
+        'pgsql' => 'jsonb',
+        'mysql', 'mariadb' => 'json',
+        default => 'text', // sqlite has no json type; Laravel stores json as text there
+    });
+});

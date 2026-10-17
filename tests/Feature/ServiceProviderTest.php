@@ -23,16 +23,22 @@ it('never auto-loads its migrations', function (): void {
         ->not->toContain($package);
 });
 
-it('publishes the migration into the host database path', function (): void {
+it('publishes the migrations into the host database path, create first', function (): void {
     $paths = ServiceProvider::pathsToPublish(CommentsServiceProvider::class, 'comments-migrations');
 
-    expect($paths)->toHaveCount(1);
+    expect($paths)->toHaveCount(2);
 
-    $source = (string) array_key_first($paths);
-    $destination = (string) reset($paths);
+    $sources = array_map(basename(...), array_keys($paths));
+    $destinations = array_values($paths);
 
-    expect(basename($source))->toBe('0001_01_01_000000_create_comments_table.php')
-        ->and($destination)->toMatch('#/database/migrations/\d{4}_\d{2}_\d{2}_\d{6}_create_comments_table\.php$#');
+    expect($sources)->toBe([
+        '0001_01_01_000000_create_comments_table.php',
+        '0001_01_01_000001_add_meta_to_comments_table.php',
+    ])
+        ->and($destinations[0])->toMatch('#/database/migrations/\d{4}_\d{2}_\d{2}_\d{6}_create_comments_table\.php$#')
+        ->and($destinations[1])->toMatch('#/database/migrations/\d{4}_\d{2}_\d{2}_\d{6}_add_meta_to_comments_table\.php$#')
+        // The ALTER must sort after the CREATE it alters in the host's migrations directory.
+        ->and(strcmp(basename($destinations[0]), basename($destinations[1])))->toBeLessThan(0);
 });
 
 it('loads the package translations', function (): void {

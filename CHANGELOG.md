@@ -6,6 +6,13 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+### Added
+
+- A nullable `meta` json column on comments (`jsonb` on PostgreSQL), cast to an array, for your own
+  per-comment metadata. It ships as a new migration: run
+  `php artisan vendor:publish --tag="comments-migrations"` again, then `php artisan migrate`. Comments
+  keeps working without it until you use `meta`.
+
 ## 1.0.2 - 2026-10-11
 
 ### Changed

@@ -37,6 +37,7 @@ use RoundlyConsulting\Reports\Contracts\Reportable;
  * @property string $commentable_type
  * @property string $comment
  * @property CarbonInterface|null $locked_at
+ * @property array<string, mixed>|null $meta
  * @property CarbonInterface|null $created_at
  * @property CarbonInterface|null $updated_at
  * @property CarbonInterface|null $deleted_at
@@ -198,6 +199,7 @@ class Comment extends Model implements HasMedia, Likeable, Reportable
             'visible' => 'boolean',
             'status' => CommentStatus::class,
             'locked_at' => 'datetime',
+            'meta' => 'array',
         ];
     }
 
