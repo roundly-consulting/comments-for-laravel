@@ -147,8 +147,9 @@ class CommentsManager
 
     /**
      * Whether the body matches the configured blocklist — checked exactly as posting checks it
-     * (trimmed). A read: it never throws, whatever `comments.blocklist_action` says, so it tells
-     * a comment the blocklist held apart from one held by `comments.require_approval`.
+     * (trimmed). A read: unlike posting it never rejects, whatever `comments.blocklist_action`
+     * says, so it tells a comment the blocklist held apart from one held by
+     * `comments.require_approval`.
      */
     public function blocklisted(string $body): bool
     {
