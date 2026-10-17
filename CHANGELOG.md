@@ -6,6 +6,8 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+## 1.1.1 - 2026-10-17
+
 ### Fixed
 
 - `$mention->comment` now returns your configured `comments.model` class instead of the packaged
