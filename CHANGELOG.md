@@ -6,6 +6,8 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+## 1.1.0 - 2026-10-17
+
 ### Added
 
 - A nullable `meta` json column on comments (`jsonb` on PostgreSQL), cast to an array, for your own
@@ -28,6 +30,10 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
 - `Comments::blocklisted($body)` tells you whether a body matches the configured blocklist, checked
   exactly as posting checks it. It never rejects, so it can tell a comment the blocklist held as
   `pending` apart from one waiting for `require_approval`.
+
+### Changed
+
+- Maintenance: CI gains a MySQL real-engine test leg.
 
 ## 1.0.2 - 2026-10-11
 
