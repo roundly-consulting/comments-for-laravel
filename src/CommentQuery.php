@@ -9,7 +9,9 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
+use RoundlyConsulting\Comments\Exceptions\InvalidCommentMetaPathException;
 use RoundlyConsulting\Comments\Models\Comment;
+use RoundlyConsulting\Comments\Support\CommentMetaPath;
 use RoundlyConsulting\Comments\Support\CommentModel;
 use RoundlyConsulting\Comments\Support\RepliesEagerLoad;
 
@@ -86,6 +88,35 @@ final class CommentQuery
         $this->publicOnly = true;
 
         return $this->loadReplies();
+    }
+
+    /**
+     * Only comments whose metadata holds `$value` at the dot-notation `$path`
+     * (`whereMeta('tickets.role', 'agent')`). Compare with the PHP type you stored: a json
+     * boolean matches `true`/`false`, a json number an int, a json string a string — SQLite
+     * does not equate `5` with `'5'`. To find comments without a key, use
+     * {@see self::whereMetaMissing()}.
+     *
+     * @throws InvalidCommentMetaPathException when the path is not lowercase dot notation
+     */
+    public function whereMeta(string $path, string|int|bool $value): self
+    {
+        $this->query->where(CommentMetaPath::column($path), $value);
+
+        return $this;
+    }
+
+    /**
+     * Only comments whose metadata lacks the dot-notation `$path` — including comments with no
+     * metadata at all. A key that holds json `null` is present, not missing.
+     *
+     * @throws InvalidCommentMetaPathException when the path is not lowercase dot notation
+     */
+    public function whereMetaMissing(string $path): self
+    {
+        $this->query->whereJsonDoesntContainKey(CommentMetaPath::column($path));
+
+        return $this;
     }
 
     public function rootsOnly(): self

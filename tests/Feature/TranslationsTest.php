@@ -37,7 +37,8 @@ it('serves slovak through the package namespace', function (): void {
     app()->setLocale('sk');
 
     expect(trans('comments::comments.body_too_long', ['max' => 500]))->toBe('Text komentára môže mať najviac 500 znakov.')
-        ->and(trans('comments::comments.unauthorized'))->toBe('Nemáte oprávnenie vykonať túto akciu s komentárom.');
+        ->and(trans('comments::comments.unauthorized'))->toBe('Nemáte oprávnenie vykonať túto akciu s komentárom.')
+        ->and(trans('comments::comments.invalid_meta_path', ['path' => 'A.b']))->toStartWith('Cesta k metaúdajom komentára [A.b] je neplatná.');
 
     app()->setLocale('en');
 

@@ -15,6 +15,9 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
 - Write metadata with `Comments::on($post)->meta([...])->post()` (repeated calls merge top-level
   keys) or `new WriteCommentData(..., meta: [...])`, and read it back with `$comment->meta('a.b',
   $default)` and `$comment->hasMeta('a.b')`. The factory gains a `meta([...])` state.
+- Filter comments by metadata: `Comments::for($post)->whereMeta('tickets.role', 'agent')` and
+  `->whereMetaMissing('tickets.internal')`, portable across SQLite, PostgreSQL and MySQL. Paths are
+  lowercase dot notation; anything else throws `InvalidCommentMetaPathException`.
 
 ## 1.0.2 - 2026-10-11
 
