@@ -11,6 +11,15 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
 - Maintenance: dev: testing `^1.6`.
 - Maintenance: CI runs the PostgreSQL and MySQL test legs on tmpfs.
 
+### Fixed
+
+- A bare `Comment::factory()->create()` or `CommentMention::factory()->create()` no longer fails
+  with `NOT NULL constraint failed: comments.commentable_type`. A comment given no subject
+  (`on($subject)`, `reply($parent)` or `for($subject, 'commentable')`) is written on a new user of
+  your auth model, built through that model's own factory. If the auth model has no factory, or
+  is missing from an enforced morph map, the factory throws a `LogicException` that tells you to
+  use `on($subject)`.
+
 ## 1.1.2 - 2026-10-17
 
 ### Fixed

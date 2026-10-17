@@ -6,6 +6,7 @@ use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Models\CommentMention;
 use RoundlyConsulting\Comments\Tests\CustomCommentTestModel;
 use RoundlyConsulting\Comments\Tests\PostTestModel;
+use RoundlyConsulting\Comments\Tests\UserTestModel;
 
 /**
  * The shipped factory builds the model the host configured. Without a `modelName()` override
@@ -29,4 +30,15 @@ it('fires the host model events for the comment a mention factory creates', func
     CommentMention::factory()->create(['comment_id' => Comment::factory()->on($post)]);
 
     expect(CustomCommentTestModel::creationCount())->toBe(1);
+});
+
+it('builds the configured comment model for a bare comment and mention', function (): void {
+    config()->set('auth.providers.users.model', UserTestModel::class);
+    CustomCommentTestModel::resetCreationCount();
+
+    $comment = Comment::factory()->create();
+    CommentMention::factory()->create();
+
+    expect($comment::class)->toBe(CustomCommentTestModel::class)
+        ->and(CustomCommentTestModel::creationCount())->toBe(2);
 });
