@@ -17,7 +17,18 @@ it('exposes its values with sensible defaults', function (): void {
         ->and($data->body)->toBe('Hello')
         ->and($data->author)->toBeNull()
         ->and($data->visible)->toBeTrue()
-        ->and($data->parent)->toBeNull();
+        ->and($data->parent)->toBeNull()
+        ->and($data->meta)->toBe([]);
+});
+
+it('carries metadata when provided', function (): void {
+    $data = new WriteCommentData(
+        commentable: PostTestModel::create(),
+        body: 'Hello',
+        meta: ['tickets' => ['internal' => true]],
+    );
+
+    expect($data->meta)->toBe(['tickets' => ['internal' => true]]);
 });
 
 it('carries an author and parent when provided', function (): void {

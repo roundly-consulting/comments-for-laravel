@@ -12,6 +12,9 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
   per-comment metadata. It ships as a new migration: run
   `php artisan vendor:publish --tag="comments-migrations"` again, then `php artisan migrate`. Comments
   keeps working without it until you use `meta`.
+- Write metadata with `Comments::on($post)->meta([...])->post()` (repeated calls merge top-level
+  keys) or `new WriteCommentData(..., meta: [...])`, and read it back with `$comment->meta('a.b',
+  $default)` and `$comment->hasMeta('a.b')`. The factory gains a `meta([...])` state.
 
 ## 1.0.2 - 2026-10-11
 

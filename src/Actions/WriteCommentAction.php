@@ -51,7 +51,7 @@ final readonly class WriteCommentAction
 
         $status = $this->resolveStatus($body);
 
-        $comment = CommentModel::class()::query()->create([
+        $attributes = [
             'parent_id' => $data->parent?->getKey(),
             'actor_id' => $data->author?->getKey(),
             'actor_type' => $data->author?->getMorphClass(),
@@ -60,7 +60,15 @@ final readonly class WriteCommentAction
             'visible' => $data->visible,
             'status' => $status,
             'comment' => $body,
-        ]);
+        ];
+
+        // Only a comment that carries metadata names the `meta` column, so a host that upgraded
+        // to 1.1.0 without publishing its additive migration keeps writing plain comments.
+        if ($data->meta !== []) {
+            $attributes['meta'] = $data->meta;
+        }
+
+        $comment = CommentModel::class()::query()->create($attributes);
 
         $this->syncMentions->execute($comment);
 

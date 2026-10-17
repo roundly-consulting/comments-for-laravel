@@ -39,6 +39,16 @@ final class CommentFactory extends Factory
     }
 
     /**
+     * Give the comment metadata (the `meta` json column).
+     *
+     * @param  array<string, mixed>  $meta
+     */
+    public function meta(array $meta): self
+    {
+        return $this->state(fn (): array => ['meta' => $meta]);
+    }
+
+    /**
      * Write the comment on the given subject (the model being commented on). A comment needs a
      * subject, so a factory comment takes this state, `reply($parent)`, or
      * `for($subject, 'commentable')`.

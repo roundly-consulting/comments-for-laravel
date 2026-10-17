@@ -13,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Arr;
 use RoundlyConsulting\Comments\CommentsManager;
 use RoundlyConsulting\Comments\Concerns\HasCommentMedia;
 use RoundlyConsulting\Comments\Concerns\HasCommentReactions;
@@ -140,6 +141,27 @@ class Comment extends Model implements HasMedia, Likeable, Reportable
     public function isLocked(): bool
     {
         return $this->locked_at !== null;
+    }
+
+    /**
+     * Read the comment's metadata: the whole array without a key (empty when the comment has
+     * none), or one value by dot-notation path (`meta('tickets.role')`), `$default` when the
+     * path is absent.
+     */
+    public function meta(?string $key = null, mixed $default = null): mixed
+    {
+        $meta = $this->meta ?? [];
+
+        return $key === null ? $meta : data_get($meta, $key, $default);
+    }
+
+    /**
+     * Whether the metadata holds the dot-notation path. A key holding `null` counts as
+     * present — the same rule `Comments::query()->whereMetaMissing()` applies in SQL.
+     */
+    public function hasMeta(string $key): bool
+    {
+        return Arr::has($this->meta ?? [], $key);
     }
 
     /**
