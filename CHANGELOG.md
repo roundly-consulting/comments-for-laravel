@@ -18,6 +18,13 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
 - Filter comments by metadata: `Comments::for($post)->whereMeta('tickets.role', 'agent')` and
   `->whereMetaMissing('tickets.internal')`, portable across SQLite, PostgreSQL and MySQL. Paths are
   lowercase dot notation; anything else throws `InvalidCommentMetaPathException`.
+- `Comments::transfer($from, $to)` moves every comment of one subject onto another — replies,
+  held, invisible and soft-deleted comments included — and returns how many moved, for merging
+  duplicate records. Threads, mentions, likes, reports, attachments and thread locks travel with
+  their comments. It refuses the same subject (`InvalidCommentTransferException`) and a locked
+  target (`CommentsLockedException`), checks the policy's existing `create` ability on the target
+  when `comments.authorization` is on, and fires `CommentsTransferred`. `Comments::fake()` records
+  it: `assertTransferred()` / `assertNothingTransferred()`.
 
 ## 1.0.2 - 2026-10-11
 

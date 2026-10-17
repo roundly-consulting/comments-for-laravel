@@ -25,6 +25,7 @@ use RoundlyConsulting\Comments\Testing\CommentsFake;
  * @method static \RoundlyConsulting\Comments\Models\Comment lockThread(\RoundlyConsulting\Comments\Models\Comment $comment)
  * @method static \RoundlyConsulting\Comments\Models\Comment unlockThread(\RoundlyConsulting\Comments\Models\Comment $comment)
  * @method static bool isThreadLocked(\RoundlyConsulting\Comments\Models\Comment $comment)
+ * @method static int transfer(\Illuminate\Database\Eloquent\Model $from, \Illuminate\Database\Eloquent\Model $to)
  * @method static void assertPosted(\RoundlyConsulting\Comments\Models\Comment|callable|null $comment = null)
  * @method static void assertNothingPosted()
  * @method static void assertUpdated(\RoundlyConsulting\Comments\Models\Comment|callable|null $comment = null)
@@ -45,6 +46,8 @@ use RoundlyConsulting\Comments\Testing\CommentsFake;
  * @method static void assertNothingThreadLocked()
  * @method static void assertThreadUnlocked(\RoundlyConsulting\Comments\Models\Comment|callable|null $comment = null)
  * @method static void assertNothingThreadUnlocked()
+ * @method static void assertTransferred(\Illuminate\Database\Eloquent\Model|callable|null $from = null, \Illuminate\Database\Eloquent\Model|null $to = null)
+ * @method static void assertNothingTransferred()
  *
  * @see CommentsManager
  * @see CommentsFake

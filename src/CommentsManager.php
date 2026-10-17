@@ -12,6 +12,7 @@ use RoundlyConsulting\Comments\Actions\HideCommentAction;
 use RoundlyConsulting\Comments\Actions\LockSubjectAction;
 use RoundlyConsulting\Comments\Actions\LockThreadAction;
 use RoundlyConsulting\Comments\Actions\RestoreCommentAction;
+use RoundlyConsulting\Comments\Actions\TransferCommentsAction;
 use RoundlyConsulting\Comments\Actions\UnlockSubjectAction;
 use RoundlyConsulting\Comments\Actions\UnlockThreadAction;
 use RoundlyConsulting\Comments\Actions\UpdateCommentAction;
@@ -141,5 +142,14 @@ class CommentsManager
     public function isThreadLocked(Comment $comment): bool
     {
         return $this->container->make(CommentLocks::class)->threadLocked($comment);
+    }
+
+    /**
+     * Move every comment of `$from` — roots, replies, held and soft-deleted ones — onto `$to`,
+     * and return how many moved. Refuses the same subject and a locked target.
+     */
+    public function transfer(Model $from, Model $to): int
+    {
+        return $this->container->make(TransferCommentsAction::class)->execute($from, $to);
     }
 }

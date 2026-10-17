@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
+use Illuminate\Database\Eloquent\Model;
 use PHPUnit\Framework\AssertionFailedError;
 use RoundlyConsulting\Comments\CommentsManager;
 use RoundlyConsulting\Comments\DataTransferObjects\WriteCommentData;
 use RoundlyConsulting\Comments\Exceptions\CommentsLockedException;
+use RoundlyConsulting\Comments\Exceptions\InvalidCommentTransferException;
 use RoundlyConsulting\Comments\Facades\Comments;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Testing\CommentsFake;
@@ -170,4 +172,43 @@ it('hands constructor-injected code the fake', function (): void {
     app(CommentsManager::class)->on($post)->body('Injected')->post();
 
     $fake->assertPosted(fn (Comment $comment): bool => $comment->comment === 'Injected');
+});
+
+it('asserts transfers, passing and failing', function (): void {
+    $fake = Comments::fake();
+    $from = PostTestModel::create();
+    $to = PostTestModel::create();
+    $other = PostTestModel::create();
+    Comments::on($from)->body('Moving')->post();
+
+    $fake->assertNothingTransferred();
+    expect(fn () => $fake->assertTransferred())->toThrow(AssertionFailedError::class, 'but none were');
+
+    $moved = Comments::transfer($from, $to);
+
+    // The fake still performs the transfer.
+    expect($moved)->toBe(1)
+        ->and($to->comments()->count())->toBe(1);
+
+    $fake->assertTransferred();
+    $fake->assertTransferred($from);
+    $fake->assertTransferred($from, $to);
+    $fake->assertTransferred(to: $to);
+    $fake->assertTransferred(fn (Model $source, Model $target, int $count): bool => $source->is($from) && $target->is($to) && $count === 1);
+
+    expect(fn () => $fake->assertTransferred($other))->toThrow(AssertionFailedError::class, 'matching the given subjects')
+        ->and(fn () => $fake->assertTransferred($from, $other))->toThrow(AssertionFailedError::class)
+        ->and(fn () => $fake->assertTransferred(to: $from))->toThrow(AssertionFailedError::class)
+        ->and(fn () => $fake->assertTransferred(fn (Model $source, Model $target, int $count): bool => $count === 2))
+        ->toThrow(AssertionFailedError::class, 'matching the callback')
+        ->and(fn () => $fake->assertNothingTransferred())->toThrow(AssertionFailedError::class, 'but 1 were');
+});
+
+it('records no transfer that throws', function (): void {
+    $fake = Comments::fake();
+    $post = PostTestModel::create();
+
+    expect(fn () => Comments::transfer($post, $post))->toThrow(InvalidCommentTransferException::class);
+
+    $fake->assertNothingTransferred();
 });

@@ -11,4 +11,5 @@ return [
     'foreign_parent' => 'A reply must be posted on the same subject as the comment it replies to.',
     'unauthorized' => 'You are not authorized to perform this comment action.',
     'invalid_meta_path' => 'The comment meta path [:path] is invalid. Use dot-separated segments of lowercase letters, digits and underscores, none of them digits only.',
+    'transfer_same_subject' => 'Comments cannot be transferred to the subject they already belong to.',
 ];

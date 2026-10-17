@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use PHPUnit\Framework\Assert;
 use RoundlyConsulting\Comments\CommentsManager;
 use RoundlyConsulting\Comments\DataTransferObjects\WriteCommentData;
+use RoundlyConsulting\Comments\Events\CommentsTransferred;
 use RoundlyConsulting\Comments\Facades\Comments;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Models\CommentLock;
@@ -20,7 +21,7 @@ use RoundlyConsulting\Comments\Models\CommentLock;
  * wherever it came: the facade, an injected {@see CommentsManager}, the `on()->post()`
  * builder, a query's `approveAll()` / `hideAll()` / `deleteAll()`, the `GivesComments` trait or
  * a `Comment` model method (`lockReplies()` / `unlockReplies()`). A call that throws records
- * nothing.
+ * nothing. Reads (`isLocked()`, `isThreadLocked()`, `blocklisted()`, queries) are not recorded.
  *
  * Each `assert*()` takes an optional expectation: a model (matched with `is()`), or a callback
  * called with the recorded comment — or, for subject locks, the recorded subject — that returns
@@ -33,6 +34,14 @@ final class CommentsFake extends CommentsManager
 {
     /** @var array<string, list<Model>> */
     private array $recorded = [];
+
+    /**
+     * Each successful transfer, kept as the value its event carries (from, to, count) — built
+     * here, never dispatched.
+     *
+     * @var list<CommentsTransferred>
+     */
+    private array $transfers = [];
 
     public function write(WriteCommentData $data): Comment
     {
@@ -90,6 +99,15 @@ final class CommentsFake extends CommentsManager
     public function unlockThread(Comment $comment): Comment
     {
         return $this->record('threadUnlocked', parent::unlockThread($comment));
+    }
+
+    public function transfer(Model $from, Model $to): int
+    {
+        $count = parent::transfer($from, $to);
+
+        $this->transfers[] = new CommentsTransferred($from, $to, $count);
+
+        return $count;
     }
 
     /**
@@ -220,6 +238,49 @@ final class CommentsFake extends CommentsManager
     public function assertNothingThreadUnlocked(): void
     {
         $this->assertNothingRecorded('threadUnlocked', 'no thread to be unlocked');
+    }
+
+    /**
+     * Assert comments were transferred: any transfer without arguments; one from `$from` (and,
+     * when given, onto `$to`) — matched with `is()`; one onto `$to` alone with
+     * `assertTransferred(to: $target)`; or one the callback accepts, called with
+     * `(Model $from, Model $to, int $count)`.
+     *
+     * @param  Model|(callable(Model, Model, int): bool)|null  $from
+     */
+    public function assertTransferred(Model|callable|null $from = null, ?Model $to = null): void
+    {
+        if ($from === null && ! $to instanceof Model) {
+            Assert::assertNotEmpty($this->transfers, 'Expected comments to be transferred, but none were.');
+
+            return;
+        }
+
+        if ($from !== null && ! $from instanceof Model) {
+            $matched = array_any(
+                $this->transfers,
+                static fn (CommentsTransferred $transfer): bool => $from($transfer->from, $transfer->to, $transfer->count) === true,
+            );
+
+            Assert::assertTrue($matched, 'Expected comments to be transferred matching the callback, but none did.');
+
+            return;
+        }
+
+        $matched = array_any(
+            $this->transfers,
+            static fn (CommentsTransferred $transfer): bool => ($from === null || $transfer->from->is($from))
+                && (! $to instanceof Model || $transfer->to->is($to)),
+        );
+
+        Assert::assertTrue($matched, 'Expected comments to be transferred matching the given subjects, but none did.');
+    }
+
+    public function assertNothingTransferred(): void
+    {
+        $count = count($this->transfers);
+
+        Assert::assertSame(0, $count, "Expected no comments to be transferred, but {$count} were.");
     }
 
     /**

@@ -11,4 +11,5 @@ return [
     'foreign_parent' => 'Odpoveď musí byť pridaná k tomu istému záznamu ako komentár, na ktorý odpovedá.',
     'unauthorized' => 'Nemáte oprávnenie vykonať túto akciu s komentárom.',
     'invalid_meta_path' => 'Cesta k metaúdajom komentára [:path] je neplatná. Použite segmenty oddelené bodkou, zložené z malých písmen, číslic a podčiarkovníkov, pričom žiadny segment nesmie obsahovať iba číslice.',
+    'transfer_same_subject' => 'Komentáre nie je možné presunúť na záznam, ku ktorému už patria.',
 ];
