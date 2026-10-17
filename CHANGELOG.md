@@ -6,6 +6,8 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+## 1.1.3 - 2026-10-17
+
 ### Changed
 
 - Maintenance: dev: testing `^1.6`.
