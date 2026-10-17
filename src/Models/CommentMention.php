@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use RoundlyConsulting\Comments\Database\Factories\CommentMentionFactory;
+use RoundlyConsulting\Comments\Support\CommentModel;
 
 /**
  * @property int $id
@@ -30,10 +31,15 @@ class CommentMention extends Model
 
     protected $guarded = [];
 
-    /** @return BelongsTo<Comment, $this> */
+    /**
+     * The mentioned-in comment, resolved through the `comments.model` seam like
+     * {@see Comment::parent()}, so a host that swapped the model reads its own class back.
+     *
+     * @return BelongsTo<Comment, $this>
+     */
     public function comment(): BelongsTo
     {
-        return $this->belongsTo(Comment::class);
+        return $this->belongsTo(CommentModel::class(), 'comment_id');
     }
 
     /** @return MorphTo<Model, $this> */

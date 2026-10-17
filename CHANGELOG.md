@@ -6,6 +6,12 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+### Fixed
+
+- `$mention->comment` now returns your configured `comments.model` class instead of the packaged
+  `Comment`, so a swapped model's casts, accessors and relations apply when you read a comment
+  from its mention.
+
 ## 1.1.0 - 2026-10-17
 
 ### Added

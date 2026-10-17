@@ -6,7 +6,9 @@ use Illuminate\Support\Facades\Gate;
 use RoundlyConsulting\Comments\Actions\WriteCommentAction;
 use RoundlyConsulting\Comments\DataTransferObjects\WriteCommentData;
 use RoundlyConsulting\Comments\Exceptions\UnauthorizedCommentActionException;
+use RoundlyConsulting\Comments\Facades\Comments;
 use RoundlyConsulting\Comments\Models\Comment;
+use RoundlyConsulting\Comments\Models\CommentMention;
 use RoundlyConsulting\Comments\Tests\ActorTestModel;
 use RoundlyConsulting\Comments\Tests\CustomCommentTestModel;
 use RoundlyConsulting\Comments\Tests\DenyingCommentPolicy;
@@ -95,6 +97,28 @@ it('resolves the threading relations through the configured model', function ():
         ->and($reply->parent()->first()::class)->toBe(CustomCommentTestModel::class)
         ->and($root->replies->first()::class)->toBe(CustomCommentTestModel::class)
         ->and($reply->parent->first()?->id ?? $reply->parent->id)->toBe($root->getKey());
+});
+
+/**
+ * A mention points back at its comment through the seam as well.
+ *
+ * `CommentMention::comment()` declared `belongsTo(Comment::class)` — the same seam bypass as the
+ * threading relations above, one model over. A host that swapped `comments.model` read its own
+ * class from `$comment->mentions` but the PACKAGED Comment back from `$mention->comment`, so a
+ * mention notification built from the mention side lost the host's casts, accessors and
+ * relations. Lazy, query and eager paths all go through the relation, so all three are pinned.
+ */
+it('resolves a mention\'s comment through the configured model', function (): void {
+    $post = PostTestModel::create();
+
+    $comment = Comments::on($post)->body('hey @alice')->post();
+    $mention = $comment->mentions()->sole();
+
+    // The concrete class, never `instanceof` — see the threading test above.
+    expect($mention->comment::class)->toBe(CustomCommentTestModel::class)
+        ->and($mention->comment()->sole()::class)->toBe(CustomCommentTestModel::class)
+        ->and(CommentMention::query()->with('comment')->sole()->comment::class)->toBe(CustomCommentTestModel::class)
+        ->and($mention->comment->is($comment))->toBeTrue();
 });
 
 /**
