@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Comments\Http\Resources;
 
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use RoundlyConsulting\Comments\Models\Comment;
+use RoundlyConsulting\Comments\Support\CommentsConfig;
 use RoundlyConsulting\MediaLibrary\Models\Media;
 
 /**
@@ -26,10 +28,14 @@ final class CommentResource extends JsonResource
             'visible' => $this->visible,
             'parent_id' => $this->parent_id,
             'locked' => $this->isLocked(),
-            'author' => $this->whenLoaded('actor', fn (): array => [
-                'type' => $this->actor_type,
-                'id' => $this->actor_id,
-            ]),
+            // Through the configured author resource, never the stored `actor_type`: without a
+            // morph map that is the author's class name. Resolved here, so `toArray()` still
+            // holds a plain array. A deleted author (loaded, but null) renders null.
+            'author' => $this->whenLoaded('actor', static function (Model $actor) use ($request): array {
+                $resource = CommentsConfig::authorResource();
+
+                return (new $resource($actor))->resolve($request);
+            }),
             // Compact like payload (count / viewer_state / breakdown) from
             // likes-for-laravel; only rendered when the caller opts in by loading
             // the `likes` relation. The viewer is never resolved from the guard.

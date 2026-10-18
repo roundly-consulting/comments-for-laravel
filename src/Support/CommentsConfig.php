@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace RoundlyConsulting\Comments\Support;
 
+use Illuminate\Http\Resources\Json\JsonResource;
+use ReflectionClass;
+use RoundlyConsulting\Comments\Http\Resources\CommentAuthorResource;
 use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 use RoundlyConsulting\PackageToolkit\Support\Config;
 
@@ -195,6 +198,32 @@ final class CommentsConfig
     public static function inlineOnMissing(): string
     {
         return Config::oneOf('comments.media.inline.on_missing', ['strip', 'keep'], 'strip');
+    }
+
+    /**
+     * The resource a comment's author renders through: CommentAuthorResource unless the host
+     * swapped in its own. It must be an instantiable JsonResource subclass — the base class
+     * would dump every visible attribute of the author model, and a class that cannot be built
+     * would only fail mid-render.
+     *
+     * @return class-string<JsonResource>
+     */
+    public static function authorResource(): string
+    {
+        $key = 'comments.resources.author';
+        $resource = self::unlessBlank(config($key));
+
+        if ($resource === null) {
+            return CommentAuthorResource::class;
+        }
+
+        if (! is_string($resource)
+            || ! is_subclass_of($resource, JsonResource::class)
+            || ! (new ReflectionClass($resource))->isInstantiable()) {
+            throw InvalidConfigurationException::notAnImplementation($key, JsonResource::class, $resource);
+        }
+
+        return $resource;
     }
 
     private static function string(string $key, string $default): string

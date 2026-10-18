@@ -33,7 +33,8 @@ it('includes the author when loaded', function (): void {
 
     $array = (new CommentResource($comment))->toArray(Request::create('/'));
 
-    expect($array['author'])->toBe(['type' => $user->getMorphClass(), 'id' => $user->getKey()]);
+    // The basename, never the morph type — CommentAuthorResourceTest pins the rest.
+    expect($array['author'])->toBe(['id' => $user->getKey(), 'type' => 'ActorTestModel']);
 });
 
 it('includes a like payload when likes are loaded', function (): void {

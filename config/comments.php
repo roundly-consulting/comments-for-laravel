@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use RoundlyConsulting\Comments\Http\Resources\CommentAuthorResource;
 use RoundlyConsulting\Comments\Models\Comment;
 
 return [
@@ -153,6 +154,27 @@ return [
     */
 
     'authorization' => env('COMMENTS_AUTHORIZATION', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | API Resources
+    |--------------------------------------------------------------------------
+    |
+    | The JSON resources CommentResource renders related models through.
+    | "author" receives the comment's actor model (when the "actor" relation is
+    | loaded) and renders its key and class basename — never the class name.
+    | Swap it for your own JsonResource subclass to add a name, an avatar or
+    | anything else your API needs. Anything that is not an instantiable
+    | JsonResource subclass throws an InvalidConfigurationException; a blank
+    | value is not set: the default applies.
+    |
+    | @var array{author: class-string<JsonResource>}
+    |
+    */
+
+    'resources' => [
+        'author' => CommentAuthorResource::class,
+    ],
 
     /*
     |--------------------------------------------------------------------------

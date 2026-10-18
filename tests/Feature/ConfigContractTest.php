@@ -31,6 +31,7 @@ it('ships exactly the config keys it reads', function (): void {
             'comments.media.private_disk',
             'comments.media.responsive_widths',
             'comments.media.inline.default_variant',
+            'comments.resources.author',
         ],
 
         // Deliberately NO `excludeFromReverse` for the provider. The testing README's own

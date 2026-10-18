@@ -6,6 +6,22 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+### Added
+
+- `CommentAuthorResource`, the JSON resource `CommentResource` renders a comment's author
+  through: `{"id": …, "type": "User"}`.
+- The `comments.resources.author` config key (default `CommentAuthorResource::class`). Point it at
+  your own `JsonResource` to add a name, an avatar or anything else your API needs; it receives the
+  author model. A value that is not an instantiable `JsonResource` subclass throws an
+  `InvalidConfigurationException` naming the key.
+
+### Changed
+
+- `CommentResource`'s `author.type` is now the author's class basename (`User`), never its class
+  name or morph alias. It used to be the stored `actor_type`, which on an app without a morph map
+  is the full class name (`App\Models\User`) — handed to every API client. To render a different
+  shape, swap the resource through `comments.resources.author`.
+
 ## 1.1.3 - 2026-10-17
 
 ### Changed
