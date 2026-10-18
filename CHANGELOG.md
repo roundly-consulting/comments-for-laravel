@@ -6,6 +6,8 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+## 1.2.0 - 2026-10-18
+
 ### Added
 
 - `CommentAuthorResource`, the JSON resource `CommentResource` renders a comment's author
