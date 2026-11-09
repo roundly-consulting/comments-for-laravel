@@ -16,16 +16,16 @@ $migrations = __DIR__.'/../../database/migrations';
 /**
  * P — the publish-only guards. The fleet publishes migrations timestamped rather than
  * auto-loading them; doing both runs both copies and dies on a duplicate table (bug #5, on
- * three packages). `2` pins the file count — the frozen `create_comments_table` plus the
- * additive `add_meta_to_comments_table` (1.1.0) — so neither check can pass over an empty or
- * relocated directory.
+ * three packages). `3` pins the file count — the frozen `create_comments_table`, the
+ * additive `add_meta_to_comments_table` (1.1.0) and `create_comment_revisions_table` (edit
+ * history) — so neither check can pass over an empty or relocated directory.
  */
 it('never auto-loads its migrations — the host publishes them', function (): void {
     expect(CommentsServiceProvider::class)->toNotAutoLoadMigrations();
 });
 
 it('publishes its migrations timestamp-injected into the host', function (): void {
-    expect(CommentsServiceProvider::class)->toPublishMigrationsTimestamped('comments-migrations', 2);
+    expect(CommentsServiceProvider::class)->toPublishMigrationsTimestamped('comments-migrations', 3);
 });
 
 /**
@@ -47,7 +47,7 @@ it('orders its migrations so every alter runs after its create', function () use
 $alterBeforeCreate = fn (array $files): array => array_reverse($files);
 
 it('applies its migrations on postgres', function () use ($migrations): void {
-    expect($migrations)->toApplyOnConnection('pgsql', migrations: 2);
+    expect($migrations)->toApplyOnConnection('pgsql', migrations: 3);
 })->skip(fn (): bool => ! test()->connectionAvailable('pgsql'), 'no postgres connection available');
 
 it('rejects an alter-before-create order on postgres', function () use ($migrations, $alterBeforeCreate): void {
@@ -55,7 +55,7 @@ it('rejects an alter-before-create order on postgres', function () use ($migrati
 })->skip(fn (): bool => ! test()->connectionAvailable('pgsql'), 'no postgres connection available');
 
 it('applies its migrations on mysql', function () use ($migrations): void {
-    expect($migrations)->toApplyOnConnection('mysql', migrations: 2);
+    expect($migrations)->toApplyOnConnection('mysql', migrations: 3);
 })->skip(fn (): bool => ! test()->connectionAvailable('mysql'), 'no mysql connection available');
 
 it('rejects an alter-before-create order on mysql', function () use ($migrations, $alterBeforeCreate): void {

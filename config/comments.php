@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use RoundlyConsulting\Comments\Http\Resources\CommentAuthorResource;
+use RoundlyConsulting\Comments\Http\Resources\CommentEditorResource;
 use RoundlyConsulting\Comments\Models\Comment;
 
 return [
@@ -134,11 +135,48 @@ return [
     | is approved. Leave null to only store the raw handles. A value that does
     | not resolve to a callable throws an InvalidConfigurationException.
     |
+    | Group mentions: return an object implementing
+    | RoundlyConsulting\Comments\Contracts\MentionableGroup ("@design-team")
+    | and the handle expands to the group's members — each stored once, the
+    | comment's own author left out, and every member notified once.
+    |
     | @var class-string|array{0: class-string, 1: string}|null
     |
     */
 
     'mention_resolver' => null,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Edit History
+    |--------------------------------------------------------------------------
+    |
+    | When enabled, every edit keeps the body it replaced as a CommentRevision
+    | (comment_revisions table), with the editor passed to
+    | Comments::update($comment, $body, editor: $user) and the time of the
+    | edit. Concurrent edits are serialized by a row lock, so each one lands in
+    | the history, in order. Disabled by default: edits overwrite the body.
+    |
+    */
+
+    'edit_history' => env('COMMENTS_EDIT_HISTORY', false),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Deleted Comments
+    |--------------------------------------------------------------------------
+    |
+    | What a soft-deleted comment does to the public thread. One of:
+    |   "remove"      — it drops out, and its replies with it (default)
+    |   "placeholder" — it keeps its place: threadedComments() and
+    |                   approvedComments() still return it with its replies,
+    |                   and CommentResource renders it as `deleted: true`
+    |                   without its body, author, attachments, likes or history
+    | Any other value throws an InvalidConfigurationException.
+    |
+    */
+
+    'deleted_comments' => env('COMMENTS_DELETED_COMMENTS', 'remove'),
 
     /*
     |--------------------------------------------------------------------------
@@ -162,18 +200,21 @@ return [
     |
     | The JSON resources CommentResource renders related models through.
     | "author" receives the comment's actor model (when the "actor" relation is
-    | loaded) and renders its key and class basename — never the class name.
-    | Swap it for your own JsonResource subclass to add a name, an avatar or
-    | anything else your API needs. Anything that is not an instantiable
-    | JsonResource subclass throws an InvalidConfigurationException; a blank
-    | value is not set: the default applies.
+    | loaded) and "editor" the model that made an edit (when "revisions.editor"
+    | is loaded); both render the key and class basename — never the class
+    | name. Swap either for your own JsonResource subclass to add a name, an
+    | avatar or anything else your API needs. Anything that is not an
+    | instantiable JsonResource subclass throws an
+    | InvalidConfigurationException; a blank value is not set: the default
+    | applies.
     |
-    | @var array{author: class-string<JsonResource>}
+    | @var array{author: class-string<JsonResource>, editor: class-string<JsonResource>}
     |
     */
 
     'resources' => [
         'author' => CommentAuthorResource::class,
+        'editor' => CommentEditorResource::class,
     ],
 
     /*

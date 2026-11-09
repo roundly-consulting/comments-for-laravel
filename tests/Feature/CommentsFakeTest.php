@@ -222,3 +222,21 @@ it('does not record a blocklist read', function (): void {
     $fake->assertNothingPosted();
     $fake->assertNothingTransferred();
 });
+
+it('records an edit with an editor and still keeps its history under the fake', function (): void {
+    config()->set('comments.edit_history', true);
+    $fake = Comments::fake();
+    $comment = Comments::on(PostTestModel::create())->body('Before')->post();
+    $editor = UserTestModel::create();
+
+    $fake->assertNothingUpdated();
+
+    Comments::update($comment, 'After', $editor);
+
+    $fake->assertUpdated($comment);
+    $fake->assertUpdated(fn (Comment $recorded): bool => $recorded->comment === 'After');
+
+    expect(Comments::history($comment)->sole()->editor->is($editor))->toBeTrue()
+        ->and(fn () => $fake->assertUpdated(fn (Comment $recorded): bool => $recorded->comment === 'Before'))
+        ->toThrow(AssertionFailedError::class);
+});

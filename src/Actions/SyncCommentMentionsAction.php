@@ -7,6 +7,7 @@ namespace RoundlyConsulting\Comments\Actions;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
+use RoundlyConsulting\Comments\Contracts\MentionableGroup;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Models\CommentMention;
 use RoundlyConsulting\Comments\Support\CommentsConfig;
@@ -27,7 +28,7 @@ final readonly class SyncCommentMentionsAction
      * Parse "@handle" tokens from the comment body and sync them against the stored
      * mentions: rows for handles still present are kept as they are, rows for dropped
      * handles are deleted, and new handles are stored and resolved via the configured
-     * resolver. Notifying is {@see NotifyCommentMentionsAction}'s: CommentMentioned fires
+     * resolver — a handle resolving to a {@see MentionableGroup} is stored once per member. Notifying is {@see NotifyCommentMentionsAction}'s: CommentMentioned fires
      * once per person, and only while the comment is approved — so editing a comment never
      * re-notifies the people it already notified (even under a different handle).
      */
@@ -57,21 +58,21 @@ final readonly class SyncCommentMentionsAction
                 continue;
             }
 
-            $mentionable = $this->resolve($handle);
+            foreach ($this->targets($handle, $comment) as $mentionable) {
+                $mention = $comment->mentions()->make([
+                    'handle' => $handle,
+                    'mentionable_id' => $mentionable?->getKey(),
+                    'mentionable_type' => $mentionable?->getMorphClass(),
+                ]);
 
-            $mention = $comment->mentions()->make([
-                'handle' => $handle,
-                'mentionable_id' => $mentionable?->getKey(),
-                'mentionable_type' => $mentionable?->getMorphClass(),
-            ]);
+                $identity = $mention->mentionedIdentity();
 
-            $identity = $mention->mentionedIdentity();
+                if ($identity !== null && in_array($identity, $notified, true)) {
+                    $mention->notified_at = Carbon::now();
+                }
 
-            if ($identity !== null && in_array($identity, $notified, true)) {
-                $mention->notified_at = Carbon::now();
+                $mention->save();
             }
-
-            $mention->save();
         }
 
         $this->notify->execute($comment);
@@ -94,13 +95,54 @@ final readonly class SyncCommentMentionsAction
         return $handles;
     }
 
-    private function resolve(string $handle): ?Model
+    /**
+     * Who a handle mentions: the resolved model, or — for a {@see MentionableGroup} — each of
+     * its members once, without the comment's own author. `[null]` (the raw handle, linked to
+     * no one) when the resolver finds nobody or the group has no one left.
+     *
+     * @return list<Model|null>
+     */
+    private function targets(string $handle, Comment $comment): array
     {
         $resolver = $this->resolver();
 
         $resolved = $resolver === null ? null : $resolver($handle);
 
-        return $resolved instanceof Model ? $resolved : null;
+        if ($resolved instanceof MentionableGroup) {
+            $members = $this->members($resolved, $comment);
+
+            return $members === [] ? [null] : $members;
+        }
+
+        return [$resolved instanceof Model ? $resolved : null];
+    }
+
+    /**
+     * @return list<Model>
+     */
+    private function members(MentionableGroup $group, Comment $comment): array
+    {
+        $author = $comment->actor_type === null || ! is_scalar($comment->actor_id)
+            ? null
+            : $comment->actor_type.'|'.$comment->actor_id;
+
+        $members = [];
+
+        foreach ($group->mentionableMembers() as $member) {
+            if (! is_scalar($member->getKey())) {
+                continue;
+            }
+
+            $identity = $member->getMorphClass().'|'.$member->getKey();
+
+            if ($identity === $author || isset($members[$identity])) {
+                continue;
+            }
+
+            $members[$identity] = $member;
+        }
+
+        return array_values($members);
     }
 
     /**

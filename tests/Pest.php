@@ -31,11 +31,13 @@ if (! function_exists('migrateCommentsKeyedBy')) {
     {
         config()->set('comments.key_type', $keyType);
 
+        Schema::dropIfExists('comment_revisions');
         Schema::dropIfExists('comment_locks');
         Schema::dropIfExists('comment_mentions');
         Schema::dropIfExists('comments');
 
         (require __DIR__.'/../database/migrations/0001_01_01_000000_create_comments_table.php')->up();
+        (require __DIR__.'/../database/migrations/0001_01_01_000002_create_comment_revisions_table.php')->up();
 
         Schema::create((new $model)->getTable(), function (Blueprint $table) use ($keyType): void {
             $keyType === 'ulid' ? $table->ulid('id')->primary() : $table->uuid('id')->primary();

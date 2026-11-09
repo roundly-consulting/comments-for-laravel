@@ -48,9 +48,9 @@ final class CommentsFake extends CommentsManager
         return $this->record('posted', parent::write($data));
     }
 
-    public function update(Comment $comment, string $body): Comment
+    public function update(Comment $comment, string $body, ?Model $editor = null): Comment
     {
-        return $this->record('updated', parent::update($comment, $body));
+        return $this->record('updated', parent::update($comment, $body, $editor));
     }
 
     public function delete(Comment $comment): void

@@ -7,6 +7,7 @@ namespace RoundlyConsulting\Comments\Support;
 use Illuminate\Http\Resources\Json\JsonResource;
 use ReflectionClass;
 use RoundlyConsulting\Comments\Http\Resources\CommentAuthorResource;
+use RoundlyConsulting\Comments\Http\Resources\CommentEditorResource;
 use RoundlyConsulting\PackageToolkit\Exceptions\InvalidConfigurationException;
 use RoundlyConsulting\PackageToolkit\Support\Config;
 
@@ -25,6 +26,10 @@ final class CommentsConfig
     public const string VISIBILITY_PRIVATE = 'private';
 
     public const string VISIBILITY_PUBLIC = 'public';
+
+    public const string DELETED_REMOVE = 'remove';
+
+    public const string DELETED_PLACEHOLDER = 'placeholder';
 
     public static function maxLength(): int
     {
@@ -87,6 +92,26 @@ final class CommentsConfig
         }
 
         return $resolver;
+    }
+
+    /** Whether an edit keeps the replaced body as a `CommentRevision` (`comments.edit_history`). */
+    public static function editHistory(): bool
+    {
+        return Config::boolean('comments.edit_history');
+    }
+
+    /**
+     * `remove` (the default — a deleted comment drops out of the thread) or `placeholder` (it
+     * stays in the public thread, with its replies, rendered without its content).
+     */
+    public static function deletedComments(): string
+    {
+        return Config::oneOf('comments.deleted_comments', [self::DELETED_REMOVE, self::DELETED_PLACEHOLDER], self::DELETED_REMOVE);
+    }
+
+    public static function deletedCommentsAsPlaceholders(): bool
+    {
+        return self::deletedComments() === self::DELETED_PLACEHOLDER;
     }
 
     /** `hide`, or null when the resolved-report path is disabled. */
@@ -210,11 +235,30 @@ final class CommentsConfig
      */
     public static function authorResource(): string
     {
-        $key = 'comments.resources.author';
+        return self::resource('comments.resources.author', CommentAuthorResource::class);
+    }
+
+    /**
+     * The resource a revision's editor renders through: CommentEditorResource unless the host
+     * swapped in its own — held to the same rule as {@see self::authorResource()}.
+     *
+     * @return class-string<JsonResource>
+     */
+    public static function editorResource(): string
+    {
+        return self::resource('comments.resources.editor', CommentEditorResource::class);
+    }
+
+    /**
+     * @param  class-string<JsonResource>  $default
+     * @return class-string<JsonResource>
+     */
+    private static function resource(string $key, string $default): string
+    {
         $resource = self::unlessBlank(config($key));
 
         if ($resource === null) {
-            return CommentAuthorResource::class;
+            return $default;
         }
 
         if (! is_string($resource)

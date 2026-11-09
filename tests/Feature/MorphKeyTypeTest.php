@@ -57,7 +57,9 @@ it('emits byte-identical morph columns on the bigint default', function (): void
         ->and(morphKtColumn('comments', 'actor_id'))->toBe($opt)
         ->and(morphKtColumn('comments', 'actor_type'))->toBe($optType)
         ->and(morphKtColumn('comment_mentions', 'mentionable_id'))->toBe($opt)
-        ->and(morphKtColumn('comment_mentions', 'mentionable_type'))->toBe($optType);
+        ->and(morphKtColumn('comment_mentions', 'mentionable_type'))->toBe($optType)
+        ->and(morphKtColumn('comment_revisions', 'editor_id'))->toBe($opt)
+        ->and(morphKtColumn('comment_revisions', 'editor_type'))->toBe($optType);
 
     Schema::dropIfExists('kt_ref');
 });
@@ -65,15 +67,18 @@ it('emits byte-identical morph columns on the bigint default', function (): void
 it('renders each configured key type as a distinct real column type', function (string $keyType, string $expected): void {
     config()->set('comments.key_type', $keyType);
 
+    Schema::dropIfExists('comment_revisions');
     Schema::dropIfExists('comment_locks');
     Schema::dropIfExists('comment_mentions');
     Schema::dropIfExists('comments');
 
     $migration = require __DIR__.'/../../database/migrations/0001_01_01_000000_create_comments_table.php';
     $migration->up();
+    (require __DIR__.'/../../database/migrations/0001_01_01_000002_create_comment_revisions_table.php')->up();
 
     // Every polymorphic id column follows the configured type, not just the first.
     expect(morphKtColumn('comments', 'commentable_id')['type'])->toBe($expected)
+        ->and(morphKtColumn('comment_revisions', 'editor_id')['type'])->toBe($expected)
         ->and(morphKtColumn('comments', 'actor_id')['type'])->toBe($expected)
         ->and(morphKtColumn('comment_mentions', 'mentionable_id')['type'])->toBe($expected)
         ->and(morphKtColumn('comment_locks', 'lockable_id')['type'])->toBe($expected)

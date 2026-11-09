@@ -7,6 +7,7 @@ use RoundlyConsulting\Comments\Exceptions\CommentsException;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Models\CommentLock;
 use RoundlyConsulting\Comments\Models\CommentMention;
+use RoundlyConsulting\Comments\Models\CommentRevision;
 use RoundlyConsulting\Comments\Policies\CommentPolicy;
 use RoundlyConsulting\Testing\Arch\ArchPresets;
 
@@ -22,8 +23,8 @@ ArchPresets::strictTypes('RoundlyConsulting\Comments');
  *
  *  - Comment, the model `config/comments.php` invites a host to swap — pinned instead by
  *    the preset below, which is the deliberate tension the two presets exist to hold;
- *  - CommentMention / CommentLock, non-final so a host swapping Comment can subclass the
- *    satellites its own relations return;
+ *  - CommentMention / CommentLock / CommentRevision, non-final so a host swapping Comment can
+ *    subclass the satellites its own relations return;
  *  - CommentsException, the exception base every typed comments failure extends and hosts
  *    catch;
  *  - CommentPolicy, which hosts extend to override single abilities (the shipped
@@ -35,6 +36,7 @@ ArchPresets::finalByDefault('RoundlyConsulting\Comments', [
     Comment::class,
     CommentMention::class,
     CommentLock::class,
+    CommentRevision::class,
     CommentsException::class,
     CommentPolicy::class,
     CommentsManager::class,

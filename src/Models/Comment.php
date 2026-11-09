@@ -22,6 +22,7 @@ use RoundlyConsulting\Comments\Database\Factories\CommentFactory;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Events\CommentCreated;
 use RoundlyConsulting\Comments\Support\CommentModel;
+use RoundlyConsulting\Comments\Support\CommentsConfig;
 use RoundlyConsulting\Comments\Traits\HasComments;
 use RoundlyConsulting\Likes\Contracts\Likeable;
 use RoundlyConsulting\MediaLibrary\Contracts\HasMedia;
@@ -47,6 +48,7 @@ use RoundlyConsulting\Reports\Contracts\Reportable;
  * @property-read Comment|null $parent
  * @property-read Collection<int, Comment> $replies
  * @property-read Collection<int, CommentMention> $mentions
+ * @property-read Collection<int, CommentRevision> $revisions
  */
 class Comment extends Model implements HasMedia, Likeable, Reportable
 {
@@ -109,6 +111,28 @@ class Comment extends Model implements HasMedia, Likeable, Reportable
     public function mentions(): HasMany
     {
         return $this->hasMany(CommentMention::class, 'comment_id');
+    }
+
+    /**
+     * The comment's edit history, oldest edit first — filled while `comments.edit_history` is
+     * on. Each revision holds the body that edit replaced; the current body is the comment's.
+     *
+     * @return HasMany<CommentRevision, $this>
+     */
+    public function revisions(): HasMany
+    {
+        return $this->hasMany(CommentRevision::class, 'comment_id')->orderBy('revision');
+    }
+
+    /**
+     * Whether this comment renders as a placeholder: it is soft-deleted and
+     * `comments.deleted_comments` is `placeholder`. A placeholder keeps its place (and its
+     * replies) in the thread, but its body, author, attachments, likes and history are never
+     * shown — `CommentResource` renders only the structure.
+     */
+    public function isPlaceholder(): bool
+    {
+        return $this->trashed() && CommentsConfig::deletedCommentsAsPlaceholders();
     }
 
     /**

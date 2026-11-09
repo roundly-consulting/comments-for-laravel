@@ -8,6 +8,7 @@ use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Exceptions\InvalidCommentMetaPathException;
 use RoundlyConsulting\Comments\Models\Comment;
@@ -32,6 +33,8 @@ final class CommentQuery
     private bool $withReplies = false;
 
     private bool $publicOnly = false;
+
+    private bool $withDeleted = false;
 
     public function __construct(
         private readonly CommentsManager $manager,
@@ -119,6 +122,21 @@ final class CommentQuery
         return $this;
     }
 
+    /**
+     * Include soft-deleted comments — at the top level and, with {@see self::withReplies()}, in
+     * the loaded replies — so a thread keeps a deleted comment's place and the replies under it.
+     * Render them through `CommentResource` with `comments.deleted_comments = placeholder` to
+     * hide their content. Bulk moderation (`approveAll()`, `hideAll()`, `deleteAll()`) still
+     * acts only on comments that are not deleted.
+     */
+    public function withDeleted(): self
+    {
+        $this->query->withoutGlobalScope(SoftDeletingScope::class);
+        $this->withDeleted = true;
+
+        return $this->loadReplies();
+    }
+
     public function rootsOnly(): self
     {
         $this->query->whereNull('parent_id');
@@ -142,8 +160,9 @@ final class CommentQuery
     {
         if ($this->withReplies) {
             // Re-registering the `replies` key replaces the earlier constraint, so the
-            // visibility rule holds whichever of visible() / withReplies() ran first.
-            $this->query->with(RepliesEagerLoad::make($this->publicOnly));
+            // visibility and deleted rules hold whichever of visible() / withDeleted() /
+            // withReplies() ran first.
+            $this->query->with(RepliesEagerLoad::make($this->publicOnly, $this->withDeleted));
         }
 
         return $this;
@@ -298,7 +317,13 @@ final class CommentQuery
         // (approving a `pending()` match, deleting one), so offset pages would skip a page's
         // worth of matches after every chunk. The caller's ordering is irrelevant to a bulk
         // action and would fight the key cursor, so it is dropped.
-        $this->query->clone()->reorder()->eachById(
+        $query = $this->query->clone()->reorder();
+
+        if ($this->withDeleted) {
+            $query->whereNull($model->getQualifiedDeletedAtColumn());
+        }
+
+        $query->eachById(
             function (Comment $comment) use ($callback, &$affected): void {
                 $callback($comment);
                 $affected++;

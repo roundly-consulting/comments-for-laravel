@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace RoundlyConsulting\Comments;
 
 use Illuminate\Contracts\Container\Container;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use RoundlyConsulting\Comments\Actions\ApproveCommentAction;
 use RoundlyConsulting\Comments\Actions\DeleteCommentAction;
@@ -22,6 +23,7 @@ use RoundlyConsulting\Comments\DataTransferObjects\WriteCommentData;
 use RoundlyConsulting\Comments\Facades\Comments;
 use RoundlyConsulting\Comments\Models\Comment;
 use RoundlyConsulting\Comments\Models\CommentLock;
+use RoundlyConsulting\Comments\Models\CommentRevision;
 use RoundlyConsulting\Comments\Support\Blocklist;
 use RoundlyConsulting\Comments\Support\CommentLocks;
 
@@ -76,10 +78,25 @@ class CommentsManager
         return $this->container->make(WriteCommentAction::class)->execute($data);
     }
 
-    public function update(Comment $comment, string $body): Comment
+    /**
+     * Edit a comment's body. With `comments.edit_history` on, the replaced body is kept as a
+     * revision naming `$editor` (when given) and the time of the edit.
+     */
+    public function update(Comment $comment, string $body, ?Model $editor = null): Comment
     {
         return $this->container->make(UpdateCommentAction::class)
-            ->execute(new UpdateCommentData(comment: $comment, body: $body));
+            ->execute(new UpdateCommentData(comment: $comment, body: $body, editor: $editor));
+    }
+
+    /**
+     * A comment's edit history, oldest edit first, each revision with its editor loaded. Empty
+     * while `comments.edit_history` is off (or the comment was never edited).
+     *
+     * @return Collection<int, CommentRevision>
+     */
+    public function history(Comment $comment): Collection
+    {
+        return $comment->revisions()->with('editor')->get();
     }
 
     public function delete(Comment $comment): void

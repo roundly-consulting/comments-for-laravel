@@ -40,6 +40,8 @@ final class CommentsServiceProvider extends PackageServiceProvider
                     return $size === 0 ? 'NONE' : $size.' term(s)';
                 }),
                 'Authorization' => Config::boolean('comments.authorization') ? 'ON' : 'OFF',
+                'Edit history' => self::orInvalid(static fn (): string => CommentsConfig::editHistory() ? 'ON' : 'OFF'),
+                'Deleted comments' => self::orInvalid(static fn (): string => CommentsConfig::deletedComments()),
                 'Auto-moderation' => Config::boolean('comments.moderation.auto_hide', true) ? 'ON' : 'OFF',
                 'Inline media' => Config::boolean('comments.media.inline.enabled', true) ? 'ON' : 'OFF',
             ]);

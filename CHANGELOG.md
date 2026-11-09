@@ -6,6 +6,28 @@ All notable changes to `comments-for-laravel` are documented in this file. The f
 
 ## Unreleased
 
+### Added
+
+- Edit history, opt-in with `comments.edit_history` (`COMMENTS_EDIT_HISTORY`, default off). Each
+  edit keeps the body it replaced as a numbered `CommentRevision` with the editor and the time.
+  Pass the editor with `Comments::update($comment, $body, editor: $user)` (`UpdateCommentData`
+  takes `editor:` too) and read the history with `Comments::history($comment)` or
+  `$comment->revisions`. Concurrent edits are serialized by a row lock, so every edit lands in the
+  history, in order. Needs the new `create_comment_revisions_table` migration: publish
+  `comments-migrations` again and run `migrate`.
+- `CommentResource` renders the history as `history` when `revisions` is loaded. Each editor
+  renders through the new `CommentEditorResource` (`{id, type}`, never a class name), which you can
+  swap with the new `comments.resources.editor` key.
+- Placeholder mode for deleted comments: `comments.deleted_comments` (`COMMENTS_DELETED_COMMENTS`)
+  set to `placeholder` keeps a soft-deleted comment in `threadedComments()` /
+  `approvedComments()`, with its replies. `CommentResource` renders it as `deleted: true` without
+  its body, author, attachments, likes or history. The default `remove` keeps today's behaviour.
+  Also adds `Comment::isPlaceholder()` and `CommentQuery::withDeleted()`.
+- Group mentions: a `comments.mention_resolver` may return a `Contracts\MentionableGroup`. The
+  handle then expands to the group's members, each stored once and never the comment's author.
+  Every member is still notified once.
+- `php artisan about` shows the edit-history switch and the deleted-comments mode.
+
 ## 2.0.0 - 2026-11-07
 
 ### Changed

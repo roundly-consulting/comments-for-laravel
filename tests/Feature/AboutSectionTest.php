@@ -59,3 +59,23 @@ it('reports the configured model and switches in the about section', function ()
         mustRender: ['Comment', 'NONE', 'OFF'],
     );
 });
+
+it('reports edit history and the deleted-comments mode', function (): void {
+    config()->set('comments.edit_history', true);
+    config()->set('comments.deleted_comments', 'placeholder');
+
+    expect('comments')->toLeakNoSecrets(
+        secrets: ['swearword-alpha'],
+        mustRender: ['Edit history', 'Deleted comments', 'placeholder'],
+    );
+});
+
+it('reports an unusable deleted-comments mode as INVALID instead of failing about', function (): void {
+    config()->set('comments.edit_history', 'sometimes');
+    config()->set('comments.deleted_comments', 'tombstone');
+
+    expect('comments')->toLeakNoSecrets(
+        secrets: ['tombstone', 'sometimes'],
+        mustRender: ['Edit history', 'Deleted comments', 'INVALID'],
+    );
+});

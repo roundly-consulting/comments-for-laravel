@@ -6,6 +6,7 @@ namespace RoundlyConsulting\Comments\Traits;
 
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use RoundlyConsulting\Comments\CommentsManager;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 use RoundlyConsulting\Comments\Models\Comment;
@@ -22,7 +23,9 @@ trait HasComments
     }
 
     /**
-     * Visible + approved top-level comments, ordered per `comments.order`.
+     * Visible + approved top-level comments, ordered per `comments.order`. With
+     * `comments.deleted_comments = placeholder` a soft-deleted one keeps its place (render it
+     * through `CommentResource`, or check `$comment->isPlaceholder()`).
      *
      * @return MorphMany<Comment, $this>
      */
@@ -30,7 +33,7 @@ trait HasComments
     {
         $direction = CommentsConfig::order() === 'oldest' ? 'asc' : 'desc';
 
-        return $this->comments()
+        return self::keepingPlaceholders($this->comments())
             ->whereNull('parent_id')
             ->where('visible', true)
             ->where('status', CommentStatus::Approved)
@@ -43,15 +46,33 @@ trait HasComments
      * `visible = false` comment never loads, and neither does anything below it — for a
      * moderation view of every reply use `Comments::for($subject)->rootsOnly()->withReplies()`.
      *
+     * With `comments.deleted_comments = placeholder` a soft-deleted comment stays in the thread
+     * at every level, with its replies; `CommentResource` renders it without its content.
+     *
      * @return MorphMany<Comment, $this>
      */
     public function threadedComments(): MorphMany
     {
-        return $this->comments()
+        $placeholders = CommentsConfig::deletedCommentsAsPlaceholders();
+
+        return self::keepingPlaceholders($this->comments())
             ->whereNull('parent_id')
             ->where('visible', true)
             ->where('status', CommentStatus::Approved)
-            ->with(RepliesEagerLoad::make(publicOnly: true));
+            ->with(RepliesEagerLoad::make(publicOnly: true, withDeleted: $placeholders));
+    }
+
+    /**
+     * @param  MorphMany<Comment, $this>  $comments
+     * @return MorphMany<Comment, $this>
+     */
+    private static function keepingPlaceholders(MorphMany $comments): MorphMany
+    {
+        if (CommentsConfig::deletedCommentsAsPlaceholders()) {
+            $comments->getQuery()->withoutGlobalScope(SoftDeletingScope::class);
+        }
+
+        return $comments;
     }
 
     /**

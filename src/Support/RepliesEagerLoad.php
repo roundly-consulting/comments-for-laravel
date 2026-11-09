@@ -6,6 +6,7 @@ namespace RoundlyConsulting\Comments\Support;
 
 use Closure;
 use Illuminate\Database\Eloquent\Relations\Relation;
+use Illuminate\Database\Eloquent\SoftDeletingScope;
 use RoundlyConsulting\Comments\Enums\CommentStatus;
 
 /**
@@ -14,7 +15,8 @@ use RoundlyConsulting\Comments\Enums\CommentStatus;
  *
  * Each level is its own constrained load, so a public read can hold every level to the
  * `Comment::visible()` rule: a hidden, pending or `visible = false` reply never loads, and
- * neither does anything below it.
+ * neither does anything below it. With `$withDeleted` soft-deleted replies load too
+ * (placeholders), so a deleted comment no longer takes its replies out of the thread.
  *
  * @internal
  */
@@ -23,25 +25,30 @@ final class RepliesEagerLoad
     /**
      * @return array<string, Closure(Relation<*, *, *>): void>
      */
-    public static function make(bool $publicOnly): array
+    public static function make(bool $publicOnly, bool $withDeleted = false): array
     {
         $levels = max(1, CommentsConfig::maxDepth() - 1);
 
-        return ['replies' => self::level($levels, $publicOnly)];
+        return ['replies' => self::level($levels, $publicOnly, $withDeleted)];
     }
 
     /**
      * @return Closure(Relation<*, *, *>): void
      */
-    private static function level(int $remaining, bool $publicOnly): Closure
+    private static function level(int $remaining, bool $publicOnly, bool $withDeleted): Closure
     {
-        return static function (Relation $replies) use ($remaining, $publicOnly): void {
+        return static function (Relation $replies) use ($remaining, $publicOnly, $withDeleted): void {
             if ($publicOnly) {
                 $replies->getBaseQuery()->where('visible', true)->where('status', CommentStatus::Approved->value);
             }
 
+            // Soft-deleted replies stay (placeholders), so the replies below them still load.
+            if ($withDeleted) {
+                $replies->getQuery()->withoutGlobalScope(SoftDeletingScope::class);
+            }
+
             if ($remaining > 1) {
-                $replies->with(['replies' => self::level($remaining - 1, $publicOnly)]);
+                $replies->with(['replies' => self::level($remaining - 1, $publicOnly, $withDeleted)]);
             }
         };
     }
